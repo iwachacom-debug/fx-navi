@@ -1196,11 +1196,39 @@ async function cachedJson(url, ttlMs){
   fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs});
   return data;
 }
+/* CORS対策: 直接アクセスがブラウザに拒否されるAPI(GMOコイン等)は
+   CORS中継サービス経由で再試行する。ホストごとに成功した経路を記憶する */
+const TRANSPORTS=[
+  u=>u, // 直接
+  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+];
+const hostTransport={}; // host → 成功したTRANSPORTSの添字
+function viaProxy(host){ return (hostTransport[host]||0)>0; }
+async function corsJson(url, ttlMs){
+  const hit=fetchCache.get(url);
+  if(hit && (hit.ttl===0 || Date.now()-hit.at<hit.ttl)) return hit.data;
+  const host=new URL(url).host;
+  const order = hostTransport[host]!=null? [hostTransport[host]] : TRANSPORTS.map((_,i)=>i);
+  let lastErr=null;
+  for(const i of order){
+    try{
+      const res=await fetch(TRANSPORTS[i](url), {cache:'no-store'});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data=await res.json();
+      hostTransport[host]=i;
+      fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs});
+      return data;
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr||new Error('fetch failed');
+}
 const GMO='https://forex-api.coin.z.com/public/v1';
+const GMO_HOST='forex-api.coin.z.com';
 
 async function gmoKlines(sym, interval, dateStr, isCurrent){
   const url=`${GMO}/klines?symbol=${sym}&priceType=BID&interval=${interval}&date=${dateStr}`;
-  const r=await cachedJson(url, isCurrent?60e3:0);
+  const r=await corsJson(url, isCurrent?60e3:0);
   if(r.status!==0 || !Array.isArray(r.data)) return [];
   return r.data.map(k=>({t:+k.openTime, o:+k.open, h:+k.high, l:+k.low, c:+k.close}));
 }
@@ -1234,15 +1262,15 @@ async function fetchGmoTf(pair, tfKey){
 }
 async function fetchAllGmo(pair, onStatus){
   onStatus('GMOコインAPIに接続中…');
-  const tick=await cachedJson(`${GMO}/ticker`, 30e3); // 疎通確認 + 現在値
+  const tick=await corsJson(`${GMO}/ticker`, 30e3); // 疎通確認 + 現在値
   if(tick.status!==0) throw new Error('gmo status');
   const tk=(tick.data||[]).find(x=>x.symbol===pair.gmo);
-  onStatus('ローソク足を取得中(GMOコイン)…');
+  onStatus(viaProxy(GMO_HOST)? 'ローソク足を取得中(GMOコイン・CORS中継経由)…' : 'ローソク足を取得中(GMOコイン)…');
   const out={};
   await Promise.all(TF_KEYS.map(async k=>{ out[k]=await fetchGmoTf(pair,k); }));
   if(TF_KEYS.every(k=>out[k].length<MIN_BARS)) throw new Error('gmo empty');
   const price= tk? +tk.bid : null;
-  return {source:'GMOコイン 外国為替API', candles:out, price};
+  return {source: viaProxy(GMO_HOST)? 'GMOコイン 外国為替API(CORS中継経由)' : 'GMOコイン 外国為替API', candles:out, price};
 }
 
 async function tdSeries(pair, interval, size, key){
@@ -1350,7 +1378,7 @@ function calTitleJa(title){
 let calendar={events:null, error:false};
 async function fetchCalendar(){
   try{
-    const raw=await cachedJson(CAL_URL, 15*60e3);
+    const raw=await corsJson(CAL_URL, 15*60e3);
     calendar.events=(raw||[]).map(e=>({
       t:Date.parse(e.date), cur:(e.country||'').toUpperCase(),
       impact:(e.impact||'').toLowerCase(), title:e.title||'',
