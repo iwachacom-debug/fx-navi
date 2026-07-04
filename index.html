@@ -1,0 +1,1914 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FXナビ — 総合テクニカル判定</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<style>
+:root{
+  --bg:#0f1420; --bg2:#161d2e; --bg3:#1e2740; --line:#2a3550;
+  --fg:#e8ecf5; --fg2:#9aa7c0; --fg3:#6a7690;
+  --accent:#4f8cff; --warn:#ffb020; --err:#ff5c5c; --ok:#3ecf8e;
+  --up:#ff4d5e; --down:#3d8bff; /* 日本式: 上昇=赤 / 下落=青 */
+  --radius:12px;
+}
+body.color-intl{ --up:#22c55e; --down:#ef4444; }
+*{box-sizing:border-box; margin:0; padding:0;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","BIZ UDPGothic",Meiryo,system-ui,sans-serif;
+  background:var(--bg); color:var(--fg); line-height:1.65; font-size:15px;
+}
+a{color:var(--accent);}
+main{max-width:920px; margin:0 auto; padding:12px 14px 60px;}
+h1{font-size:19px; letter-spacing:.02em;}
+h2{font-size:16px; margin-bottom:8px; color:var(--fg); display:flex; align-items:center; gap:6px;}
+section{margin-top:18px;}
+.card{background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
+.muted{color:var(--fg2); font-size:13px;}
+.small{font-size:12px; color:var(--fg3);}
+button{font-family:inherit;}
+
+/* ヘッダー */
+header{
+  position:sticky; top:0; z-index:20; background:rgba(15,20,32,.92); backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line);
+}
+.header-in{max-width:920px; margin:0 auto; padding:10px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+#sessionBadge{
+  font-size:12px; padding:3px 10px; border-radius:999px; background:var(--bg3);
+  border:1px solid var(--line); color:var(--fg2); white-space:nowrap;
+}
+#sessionBadge.warn{border-color:var(--warn); color:var(--warn);}
+.header-btns{margin-left:auto; display:flex; gap:8px;}
+.icon-btn{
+  background:var(--bg3); color:var(--fg); border:1px solid var(--line); border-radius:8px;
+  padding:6px 12px; font-size:13px; cursor:pointer;
+}
+.icon-btn:hover{border-color:var(--accent);}
+
+/* 操作パネル */
+#controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+#pairSelect{
+  background:var(--bg3); color:var(--fg); border:1px solid var(--line); border-radius:8px;
+  padding:10px 12px; font-size:16px; min-width:140px;
+}
+#analyzeBtn{
+  flex:1; min-width:200px; background:linear-gradient(135deg,#3b76e8,#5b8cff); color:#fff;
+  border:none; border-radius:10px; padding:13px 20px; font-size:17px; font-weight:700;
+  cursor:pointer; letter-spacing:.05em; box-shadow:0 4px 14px rgba(59,118,232,.35);
+}
+#analyzeBtn:hover{filter:brightness(1.08);}
+#analyzeBtn:disabled{opacity:.55; cursor:wait; box-shadow:none;}
+#statusLine{margin-top:8px; min-height:1.2em;}
+#statusLine.error{color:var(--err);}
+
+/* バナー */
+.banner{
+  margin-top:10px; padding:9px 14px; border-radius:10px; font-size:13px;
+  background:rgba(255,176,32,.1); border:1px solid rgba(255,176,32,.45); color:var(--warn);
+}
+.banner.demo{background:rgba(255,92,92,.08); border-color:rgba(255,92,92,.5); color:var(--err);}
+
+/* 総合判定カード */
+#verdictCard{border-width:2px;}
+.verdict-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
+#verdictLabel{font-size:30px; font-weight:800; letter-spacing:.04em;}
+#verdictScore{font-size:15px; color:var(--fg2);}
+.v-strongbuy #verdictLabel{color:var(--up);}
+.v-buy #verdictLabel{color:var(--up); opacity:.85;}
+.v-neutral #verdictLabel{color:var(--fg2);}
+.v-sell #verdictLabel{color:var(--down); opacity:.85;}
+.v-strongsell #verdictLabel{color:var(--down);}
+.v-strongbuy{border-color:var(--up);} .v-strongsell{border-color:var(--down);}
+.meter{position:relative; height:14px; background:linear-gradient(90deg,var(--down),#3a4258 48%,#3a4258 52%,var(--up)); border-radius:7px; margin:12px 0 4px; opacity:.9;}
+.meter-needle{position:absolute; top:-4px; width:4px; height:22px; background:#fff; border-radius:2px; box-shadow:0 0 6px rgba(0,0,0,.6); transform:translateX(-50%);}
+.meter-scale{display:flex; justify-content:space-between; font-size:11px; color:var(--fg3); margin-bottom:10px;}
+#verdictReason{font-size:14px;}
+#verdictWarns{margin-top:10px; display:flex; flex-direction:column; gap:6px;}
+.warn-item{font-size:13px; color:var(--warn); background:rgba(255,176,32,.08); border-left:3px solid var(--warn); padding:6px 10px; border-radius:0 8px 8px 0;}
+
+/* 売買プラン */
+#planCard table{width:100%; border-collapse:collapse; font-size:14px;}
+#planCard th,#planCard td{padding:9px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top;}
+#planCard th{color:var(--fg2); font-weight:600; white-space:nowrap; width:11em;}
+#planCard td.num{font-variant-numeric:tabular-nums; font-weight:700; font-size:16px;}
+.dir-buy{color:var(--up); font-weight:800;} .dir-sell{color:var(--down); font-weight:800;}
+.help-q{
+  display:inline-block; margin-left:6px; width:17px; height:17px; line-height:17px; text-align:center;
+  border-radius:50%; background:var(--bg3); border:1px solid var(--line); color:var(--fg2);
+  font-size:11px; cursor:pointer; user-select:none;
+}
+.skip-box{padding:4px 0;}
+.skip-title{font-size:19px; font-weight:800; color:var(--fg2);}
+.skip-reasons{margin-top:8px; display:flex; flex-direction:column; gap:6px;}
+.skip-reasons div{font-size:13.5px; background:var(--bg3); border-radius:8px; padding:8px 12px;}
+.plan-note{margin-top:10px;}
+
+/* 経済指標カレンダー */
+#calCard.urgent{border-color:var(--err); box-shadow:0 0 0 1px var(--err);}
+.cal-list{display:flex; flex-direction:column; gap:6px;}
+.cal-item{display:flex; gap:10px; align-items:center; font-size:13.5px; background:var(--bg3); border-radius:8px; padding:7px 11px; flex-wrap:wrap;}
+.cal-time{font-variant-numeric:tabular-nums; color:var(--fg); font-weight:700; white-space:nowrap;}
+.cal-cur{color:var(--fg2); font-size:12px; white-space:nowrap;}
+.imp{font-size:11px; padding:1px 8px; border-radius:999px; white-space:nowrap;}
+.imp-high{background:rgba(255,92,92,.18); color:var(--err); border:1px solid var(--err);}
+.imp-med{background:rgba(255,176,32,.15); color:var(--warn); border:1px solid var(--warn);}
+.imp-low{background:var(--bg2); color:var(--fg3); border:1px solid var(--line);}
+
+/* 時間足サマリー */
+.tf-scroll{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px;}
+@media(max-width:640px){
+  .tf-scroll{display:flex; overflow-x:auto; padding-bottom:8px; scroll-snap-type:x mandatory;}
+  .tf-card{min-width:150px; scroll-snap-align:start;}
+}
+.tf-card{background:var(--bg2); border:1px solid var(--line); border-radius:10px; padding:9px 11px;}
+.tf-card .tf-name{font-size:12px; color:var(--fg2);}
+.tf-card .tf-verdict{font-size:15px; font-weight:800;}
+.tf-card .tf-basis{font-size:11.5px; color:var(--fg3); margin-top:2px;}
+.tf-card.b{border-left:3px solid var(--up);} .tf-card.s{border-left:3px solid var(--down);} .tf-card.n{border-left:3px solid var(--fg3);}
+.tf-card .tf-verdict.b{color:var(--up);} .tf-card .tf-verdict.s{color:var(--down);} .tf-card .tf-verdict.n{color:var(--fg2);}
+
+/* チャート */
+.chart-tabs{display:flex; gap:4px; overflow-x:auto; margin-bottom:8px;}
+.chart-tabs button{
+  background:var(--bg3); border:1px solid var(--line); color:var(--fg2); border-radius:8px;
+  padding:5px 11px; font-size:13px; cursor:pointer; white-space:nowrap;
+}
+.chart-tabs button.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+#chartBox{height:380px; background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; position:relative;}
+#chartCanvas{width:100%; height:100%; display:block;}
+.overlay-toggles{display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; font-size:13px; color:var(--fg2);}
+.overlay-toggles label{cursor:pointer; user-select:none; display:flex; gap:4px; align-items:center;}
+
+/* 指標テーブル */
+.table-wrap{overflow-x:auto;}
+#indTable{width:100%; border-collapse:collapse; font-size:13.5px; min-width:560px;}
+#indTable th,#indTable td{padding:8px 8px; border-bottom:1px solid var(--line); text-align:left;}
+#indTable th{color:var(--fg2); font-weight:600; font-size:12.5px; position:sticky; top:0; background:var(--bg2);}
+#indTable td.val{font-variant-numeric:tabular-nums; white-space:nowrap;}
+#indTable tr.ind-row{cursor:pointer;}
+#indTable tr.ind-row:hover{background:var(--bg3);}
+#indTable tr.detail-row td{background:var(--bg3); color:var(--fg2); font-size:13px;}
+.badge{display:inline-block; font-size:12px; padding:1px 10px; border-radius:999px; font-weight:700; white-space:nowrap;}
+.badge.b{background:rgba(255,77,94,.15); color:var(--up); border:1px solid var(--up);}
+.badge.s{background:rgba(61,139,255,.15); color:var(--down); border:1px solid var(--down);}
+.badge.n{background:var(--bg3); color:var(--fg2); border:1px solid var(--line);}
+body.color-intl .badge.b{background:rgba(34,197,94,.15);}
+body.color-intl .badge.s{background:rgba(239,68,68,.15);}
+.group-head td{background:var(--bg3)!important; color:var(--fg2); font-size:12px; font-weight:700; letter-spacing:.05em;}
+
+/* モーダル */
+.modal-back{position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:50; display:none; align-items:flex-start; justify-content:center; overflow-y:auto; padding:30px 14px;}
+.modal-back.show{display:flex;}
+.modal{background:var(--bg2); border:1px solid var(--line); border-radius:14px; max-width:640px; width:100%; padding:20px;}
+.modal h3{font-size:17px; margin-bottom:12px;}
+.modal .close-x{float:right; background:none; border:none; color:var(--fg2); font-size:20px; cursor:pointer;}
+.modal label{display:block; margin:12px 0 4px; font-size:13px; color:var(--fg2);}
+.modal input[type=text],.modal input[type=password],.modal select{
+  width:100%; background:var(--bg3); border:1px solid var(--line); color:var(--fg); border-radius:8px; padding:9px 11px; font-size:14px;
+}
+.modal .modal-actions{margin-top:18px; display:flex; gap:10px; justify-content:flex-end;}
+.btn-primary{background:var(--accent); color:#fff; border:none; border-radius:8px; padding:9px 20px; font-size:14px; cursor:pointer; font-weight:700;}
+.btn-plain{background:var(--bg3); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer;}
+.gloss-item{border-bottom:1px solid var(--line); padding:9px 0;}
+.gloss-item dt{font-weight:700; font-size:14px;}
+.gloss-item dd{font-size:13px; color:var(--fg2); margin-top:2px;}
+
+/* セルフテスト */
+#testResults{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px;}
+#testResults .pass{color:var(--ok);} #testResults .fail{color:var(--err); font-weight:700;}
+
+/* フッター */
+footer{border-top:1px solid var(--line); margin-top:40px;}
+.footer-in{max-width:920px; margin:0 auto; padding:18px 14px 30px;}
+.spin{display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%; animation:sp 1s linear infinite; vertical-align:-2px; margin-right:6px;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-in">
+    <h1>📈 FXナビ</h1>
+    <span id="sessionBadge">—</span>
+    <div class="header-btns">
+      <button class="icon-btn" id="glossBtn">📖 用語集</button>
+      <button class="icon-btn" id="settingsBtn">⚙ 設定</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="testSection" class="card hidden">
+    <h2>🧪 セルフテスト</h2>
+    <div id="testResults"></div>
+  </section>
+
+  <section class="card">
+    <div id="controls">
+      <select id="pairSelect"></select>
+      <button id="analyzeBtn">🔍 今すぐ分析</button>
+    </div>
+    <div id="statusLine" class="muted"></div>
+    <div id="marketBanner" class="banner hidden"></div>
+    <div id="demoBanner" class="banner demo hidden">⚠️ デモデータで表示中です。実際の相場とは無関係の架空データなので、取引の参考にしないでください。</div>
+  </section>
+
+  <div id="results" class="hidden">
+
+    <section class="card" id="verdictCard">
+      <div class="verdict-head">
+        <span id="verdictLabel">—</span>
+        <span id="verdictScore"></span>
+      </div>
+      <div class="meter"><div class="meter-needle" id="meterNeedle" style="left:50%"></div></div>
+      <div class="meter-scale"><span>-100 強い売り</span><span>0 中立</span><span>+100 強い買い</span></div>
+      <div id="verdictReason"></div>
+      <div id="verdictWarns"></div>
+    </section>
+
+    <section class="card" id="planCard">
+      <h2>📝 売買プラン</h2>
+      <div id="planBody"></div>
+    </section>
+
+    <section class="card" id="calCard">
+      <h2>📅 今後24時間の経済指標</h2>
+      <div id="calBody" class="cal-list"></div>
+    </section>
+
+    <section>
+      <h2>⏱ 時間足別の判定</h2>
+      <div class="tf-scroll" id="tfSummary"></div>
+    </section>
+
+    <section>
+      <h2>📊 チャート</h2>
+      <div class="chart-tabs" id="chartTabs"></div>
+      <div id="chartBox"><canvas id="chartCanvas" class="hidden"></canvas><div id="lwcBox" style="width:100%;height:100%"></div></div>
+      <div class="overlay-toggles" id="overlayToggles">
+        <label><input type="checkbox" data-ov="sma" checked>移動平均線</label>
+        <label><input type="checkbox" data-ov="bb">ボリンジャーバンド</label>
+        <label><input type="checkbox" data-ov="ichi">一目均衡表の雲</label>
+        <label><input type="checkbox" data-ov="sar">パラボリックSAR</label>
+        <label><input type="checkbox" data-ov="pivot">ピボット</label>
+        <label><input type="checkbox" data-ov="plan" checked>売買プランの線</label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>🔬 指標の詳細(タップで解説)</h2>
+      <div class="table-wrap">
+        <table id="indTable">
+          <thead><tr><th>指標</th><th>現在値</th><th>判定</th><th>一言解説</th></tr></thead>
+          <tbody id="indTableBody"></tbody>
+        </table>
+      </div>
+      <p class="small" style="margin-top:8px">※メイン判定軸である1時間足の値を表示しています。判定は直近の確定足に基づきます。</p>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="footer-in">
+    <p class="small" id="footerSource"></p>
+    <p class="small" style="margin-top:8px">
+      本アプリはテクニカル指標に基づく参考情報を表示するものであり、投資助言・投資勧誘ではありません。売買の最終判断はご自身の責任で行ってください。テクニカル分析は将来の値動きを保証しません。FX取引は元本を上回る損失が発生する可能性があります。
+    </p>
+  </div>
+</footer>
+
+<!-- 設定モーダル -->
+<div class="modal-back" id="settingsModal">
+  <div class="modal">
+    <button class="close-x" data-close="settingsModal">✕</button>
+    <h3>⚙ 設定</h3>
+    <label>Twelve Data APIキー(任意・GMOコインAPIが使えないときの予備)</label>
+    <input type="password" id="setTdKey" placeholder="無料キーを twelvedata.com で取得できます">
+    <label>上昇の表示色</label>
+    <select id="setColorMode">
+      <option value="jp">赤=上昇 / 青=下落(日本式)</option>
+      <option value="intl">緑=上昇 / 赤=下落(海外式)</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn-primary" id="settingsSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 用語集モーダル -->
+<div class="modal-back" id="glossModal">
+  <div class="modal">
+    <button class="close-x" data-close="glossModal">✕</button>
+    <h3>📖 用語集</h3>
+    <dl id="glossList"></dl>
+  </div>
+</div>
+
+<!-- 免責ダイアログ(初回) -->
+<div class="modal-back" id="disclaimerModal">
+  <div class="modal">
+    <h3>ご利用の前に</h3>
+    <p style="font-size:14px">
+      本アプリはテクニカル指標に基づく<strong>参考情報</strong>を表示するものであり、投資助言・投資勧誘ではありません。
+      売買の最終判断はご自身の責任で行ってください。テクニカル分析は将来の値動きを保証しません。
+      FX取引は元本を上回る損失が発生する可能性があります。
+    </p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="disclaimerOk">理解しました</button>
+    </div>
+  </div>
+</div>
+<script>
+/* ================= CORE START =================
+   指標計算・判定エンジン(純粋関数のみ・DOM非依存)
+   candle = { t:ミリ秒, o, h, l, c }
+   シグナル値: +1(買い) 〜 -1(売り)、null=データ不足 */
+
+// ---------- 基本の数列関数 ----------
+function smaArr(v, n){
+  const out = new Array(v.length).fill(null);
+  let sum = 0;
+  for(let i=0;i<v.length;i++){
+    sum += v[i];
+    if(i >= n) sum -= v[i-n];
+    if(i >= n-1) out[i] = sum/n;
+  }
+  return out;
+}
+function emaArr(v, n){
+  const out = new Array(v.length).fill(null);
+  if(v.length < n) return out;
+  const k = 2/(n+1);
+  let e = 0;
+  for(let i=0;i<n;i++) e += v[i];
+  e /= n;                       // 初期値は最初のn本のSMA
+  out[n-1] = e;
+  for(let i=n;i<v.length;i++){ e = v[i]*k + e*(1-k); out[i] = e; }
+  return out;
+}
+// Wilder平滑(RSI/ATR/ADX用)
+function wilderArr(v, n){
+  const out = new Array(v.length).fill(null);
+  if(v.length < n) return out;
+  let e = 0;
+  for(let i=0;i<n;i++) e += v[i];
+  e /= n;
+  out[n-1] = e;
+  for(let i=n;i<v.length;i++){ e = (e*(n-1) + v[i])/n; out[i] = e; }
+  return out;
+}
+function highest(c, i, n, f){ let m=-Infinity; for(let k=i-n+1;k<=i;k++) m=Math.max(m, f(c[k])); return m; }
+function lowest(c, i, n, f){ let m=Infinity; for(let k=i-n+1;k<=i;k++) m=Math.min(m, f(c[k])); return m; }
+
+// ---------- 各指標の数列 ----------
+function rsiArr(closes, n=14){
+  const g=[0], l=[0];
+  for(let i=1;i<closes.length;i++){
+    const d = closes[i]-closes[i-1];
+    g.push(Math.max(d,0)); l.push(Math.max(-d,0));
+  }
+  const ag = wilderArr(g.slice(1), n), al = wilderArr(l.slice(1), n);
+  const out = new Array(closes.length).fill(null);
+  for(let i=0;i<ag.length;i++){
+    if(ag[i]==null) continue;
+    out[i+1] = al[i]===0 ? 100 : 100 - 100/(1 + ag[i]/al[i]);
+  }
+  return out;
+}
+function macdArr(closes, f=12, s=26, sig=9){
+  const ef = emaArr(closes, f), es = emaArr(closes, s);
+  const macd = closes.map((_,i)=> (ef[i]!=null&&es[i]!=null)? ef[i]-es[i] : null);
+  const start = macd.findIndex(x=>x!=null);
+  const sigArr = new Array(closes.length).fill(null);
+  if(start>=0){
+    const seg = macd.slice(start);
+    const se = emaArr(seg, sig);
+    for(let i=0;i<se.length;i++) if(se[i]!=null) sigArr[start+i]=se[i];
+  }
+  const hist = macd.map((m,i)=> (m!=null&&sigArr[i]!=null)? m-sigArr[i] : null);
+  return {macd, signal:sigArr, hist};
+}
+function atrArr(candles, n=14){
+  const tr=[];
+  for(let i=0;i<candles.length;i++){
+    const c=candles[i];
+    if(i===0){ tr.push(c.h-c.l); continue; }
+    const pc=candles[i-1].c;
+    tr.push(Math.max(c.h-c.l, Math.abs(c.h-pc), Math.abs(c.l-pc)));
+  }
+  return wilderArr(tr, n);
+}
+function adxArr(candles, n=14){
+  const len=candles.length;
+  const pdm=[0], mdm=[0], tr=[candles[0]? candles[0].h-candles[0].l : 0];
+  for(let i=1;i<len;i++){
+    const up=candles[i].h-candles[i-1].h, dn=candles[i-1].l-candles[i].l;
+    pdm.push(up>dn && up>0 ? up : 0);
+    mdm.push(dn>up && dn>0 ? dn : 0);
+    const pc=candles[i-1].c;
+    tr.push(Math.max(candles[i].h-candles[i].l, Math.abs(candles[i].h-pc), Math.abs(candles[i].l-pc)));
+  }
+  const sp=wilderArr(pdm.slice(1),n), sm=wilderArr(mdm.slice(1),n), st=wilderArr(tr.slice(1),n);
+  const pdi=new Array(len).fill(null), mdi=new Array(len).fill(null), dx=[];
+  for(let i=0;i<sp.length;i++){
+    if(sp[i]==null||st[i]==null||st[i]===0){ dx.push(null); continue; }
+    const p=100*sp[i]/st[i], m=100*sm[i]/st[i];
+    pdi[i+1]=p; mdi[i+1]=m;
+    dx.push(p+m===0? 0 : 100*Math.abs(p-m)/(p+m));
+  }
+  const validDx = dx.filter(x=>x!=null);
+  const adxSeg = wilderArr(validDx, n);
+  const adx=new Array(len).fill(null);
+  const firstDx = dx.findIndex(x=>x!=null);
+  for(let i=0;i<adxSeg.length;i++) if(adxSeg[i]!=null) adx[firstDx+i+1]=adxSeg[i];
+  return {adx, pdi, mdi};
+}
+function stochArr(candles, kN=14, dN=3, slowN=3){
+  const len=candles.length;
+  const raw=new Array(len).fill(null);
+  for(let i=kN-1;i<len;i++){
+    const hh=highest(candles,i,kN,x=>x.h), ll=lowest(candles,i,kN,x=>x.l);
+    raw[i]= hh===ll? 50 : (candles[i].c-ll)/(hh-ll)*100;
+  }
+  const smooth=(arr,n)=>{
+    const out=new Array(arr.length).fill(null);
+    for(let i=0;i<arr.length;i++){
+      let s=0,cnt=0;
+      for(let k=i-n+1;k<=i;k++){ if(k>=0&&arr[k]!=null){s+=arr[k];cnt++;} }
+      if(cnt===n) out[i]=s/n;
+    }
+    return out;
+  };
+  const k=smooth(raw,slowN), d=smooth(k,dN);
+  return {k,d};
+}
+function cciArr(candles, n=20){
+  const tp=candles.map(c=>(c.h+c.l+c.c)/3);
+  const m=smaArr(tp,n);
+  const out=new Array(candles.length).fill(null);
+  for(let i=n-1;i<candles.length;i++){
+    let dev=0;
+    for(let k=i-n+1;k<=i;k++) dev+=Math.abs(tp[k]-m[i]);
+    dev/=n;
+    out[i]= dev===0? 0 : (tp[i]-m[i])/(0.015*dev);
+  }
+  return out;
+}
+function willrArr(candles, n=14){
+  const out=new Array(candles.length).fill(null);
+  for(let i=n-1;i<candles.length;i++){
+    const hh=highest(candles,i,n,x=>x.h), ll=lowest(candles,i,n,x=>x.l);
+    out[i]= hh===ll? -50 : (hh-candles[i].c)/(hh-ll)*-100;
+  }
+  return out;
+}
+function rciArr(closes, n){
+  const out=new Array(closes.length).fill(null);
+  for(let i=n-1;i<closes.length;i++){
+    const win=closes.slice(i-n+1,i+1);
+    // 価格順位(昇順・同値は平均順位)
+    const sorted=win.map((v,idx)=>({v,idx})).sort((a,b)=>a.v-b.v);
+    const rank=new Array(n);
+    let k=0;
+    while(k<n){
+      let j=k;
+      while(j+1<n && sorted[j+1].v===sorted[k].v) j++;
+      const avg=(k+j)/2+1;
+      for(let m=k;m<=j;m++) rank[sorted[m].idx]=avg;
+      k=j+1;
+    }
+    let d2=0;
+    for(let t=0;t<n;t++){ const diff=(t+1)-rank[t]; d2+=diff*diff; }
+    out[i]=(1 - 6*d2/(n*(n*n-1)))*100;
+  }
+  return out;
+}
+function rocArr(closes, n=12){
+  return closes.map((c,i)=> i>=n? (c/closes[i-n]-1)*100 : null);
+}
+function bollArr(closes, n=20, mult=2){
+  const mid=smaArr(closes,n);
+  const upper=new Array(closes.length).fill(null), lower=upper.slice(), width=upper.slice();
+  for(let i=n-1;i<closes.length;i++){
+    let s=0;
+    for(let k=i-n+1;k<=i;k++){ const d=closes[k]-mid[i]; s+=d*d; }
+    const sd=Math.sqrt(s/n);
+    upper[i]=mid[i]+mult*sd; lower[i]=mid[i]-mult*sd;
+    width[i]= mid[i]!==0? (upper[i]-lower[i])/mid[i] : 0;
+  }
+  return {mid,upper,lower,width};
+}
+function sarArr(candles, afStep=0.02, afMax=0.2){
+  const len=candles.length;
+  const sar=new Array(len).fill(null), up=new Array(len).fill(null);
+  if(len<3) return {sar, up};
+  let rising = candles[1].c >= candles[0].c;
+  let ep = rising? Math.max(candles[0].h,candles[1].h) : Math.min(candles[0].l,candles[1].l);
+  let s  = rising? Math.min(candles[0].l,candles[1].l) : Math.max(candles[0].h,candles[1].h);
+  let af = afStep;
+  for(let i=2;i<len;i++){
+    s = s + af*(ep-s);
+    if(rising){
+      s = Math.min(s, candles[i-1].l, candles[i-2].l);
+      if(candles[i].l < s){ // 転換
+        rising=false; s=ep; ep=candles[i].l; af=afStep;
+      } else if(candles[i].h > ep){ ep=candles[i].h; af=Math.min(af+afStep, afMax); }
+    } else {
+      s = Math.max(s, candles[i-1].h, candles[i-2].h);
+      if(candles[i].h > s){
+        rising=true; s=ep; ep=candles[i].h; af=afStep;
+      } else if(candles[i].l < ep){ ep=candles[i].l; af=Math.min(af+afStep, afMax); }
+    }
+    sar[i]=s; up[i]=rising;
+  }
+  return {sar, up};
+}
+function ichimokuArr(candles, tenkanN=9, kijunN=26, senkouN=52){
+  const len=candles.length;
+  const mk=(n)=>{
+    const out=new Array(len).fill(null);
+    for(let i=n-1;i<len;i++) out[i]=(highest(candles,i,n,x=>x.h)+lowest(candles,i,n,x=>x.l))/2;
+    return out;
+  };
+  const tenkan=mk(tenkanN), kijun=mk(kijunN);
+  // senkouA/B[i] = i時点に適用される値(26本前に計算されたもの)
+  const senkouA=new Array(len).fill(null), senkouB=new Array(len).fill(null);
+  for(let i=0;i<len;i++){
+    const src=i-kijunN;
+    if(src>=0 && tenkan[src]!=null && kijun[src]!=null) senkouA[i]=(tenkan[src]+kijun[src])/2;
+    if(src>=senkouN-1) senkouB[i]=(highest(candles,src,senkouN,x=>x.h)+lowest(candles,src,senkouN,x=>x.l))/2;
+  }
+  return {tenkan,kijun,senkouA,senkouB};
+}
+function pivotPoints(d){ // d = 前日の日足 {h,l,c}
+  const P=(d.h+d.l+d.c)/3;
+  return {P, R1:2*P-d.l, S1:2*P-d.h, R2:P+(d.h-d.l), S2:P-(d.h-d.l), R3:d.h+2*(P-d.l), S3:d.l-2*(d.h-P)};
+}
+// スイングハイ/ロー(左右lookback本より高い/安い)
+function findSwings(candles, lookback=5){
+  const highs=[], lows=[];
+  for(let i=lookback;i<candles.length-lookback;i++){
+    let isH=true, isL=true;
+    for(let k=i-lookback;k<=i+lookback;k++){
+      if(k===i) continue;
+      if(candles[k].h >= candles[i].h) isH=false;
+      if(candles[k].l <= candles[i].l) isL=false;
+      if(!isH&&!isL) break;
+    }
+    if(isH) highs.push({i, price:candles[i].h});
+    if(isL) lows.push({i, price:candles[i].l});
+  }
+  return {highs, lows};
+}
+// 近い水準をまとめる(tol以内はクラスタ平均)
+function clusterLevels(levels, tol){
+  const sorted=[...levels].sort((a,b)=>a-b);
+  const out=[];
+  let group=[];
+  for(const v of sorted){
+    if(group.length===0 || v-group[group.length-1]<=tol) group.push(v);
+    else { out.push(group.reduce((a,b)=>a+b,0)/group.length); group=[v]; }
+  }
+  if(group.length) out.push(group.reduce((a,b)=>a+b,0)/group.length);
+  return out;
+}
+// ローソク足パターン(直近3本の確定足)
+function detectCandlePattern(c3){
+  if(c3.length<1) return {signal:0, name:null};
+  const bar=(c)=>{
+    const body=Math.abs(c.c-c.o), range=c.h-c.l||1e-12;
+    return {body, range, bull:c.c>c.o, bear:c.c<c.o,
+      upWick:c.h-Math.max(c.o,c.c), loWick:Math.min(c.o,c.c)-c.l};
+  };
+  const n=c3.length, cur=c3[n-1], b=bar(cur);
+  if(n>=2){
+    const prev=c3[n-2], pb=bar(prev);
+    // 包み足
+    if(pb.bear && b.bull && cur.c>=Math.max(prev.o,prev.c) && cur.o<=Math.min(prev.o,prev.c) && b.body>pb.body)
+      return {signal:1, name:'包み足(陽)'};
+    if(pb.bull && b.bear && cur.o>=Math.max(prev.o,prev.c) && cur.c<=Math.min(prev.o,prev.c) && b.body>pb.body)
+      return {signal:-1, name:'包み足(陰)'};
+  }
+  if(n>=3){
+    const b1=bar(c3[n-3]), b2=bar(c3[n-2]);
+    // 明けの明星 / 宵の明星
+    if(b1.bear && b1.body/b1.range>0.5 && b2.body<b1.body*0.4 && b.bull && cur.c>(c3[n-3].o+c3[n-3].c)/2)
+      return {signal:1, name:'明けの明星'};
+    if(b1.bull && b1.body/b1.range>0.5 && b2.body<b1.body*0.4 && b.bear && cur.c<(c3[n-3].o+c3[n-3].c)/2)
+      return {signal:-1, name:'宵の明星'};
+  }
+  // ピンバー
+  if(b.body/b.range<0.35 && b.loWick/b.range>=0.55) return {signal:1, name:'ピンバー(下ヒゲ)'};
+  if(b.body/b.range<0.35 && b.upWick/b.range>=0.55) return {signal:-1, name:'ピンバー(上ヒゲ)'};
+  if(b.body/b.range<0.1) return {signal:0, name:'同時線(迷い)'};
+  return {signal:0, name:null};
+}
+
+// ---------- シグナル判定ヘルパー ----------
+const last=(a)=>a[a.length-1];
+const at=(a,off)=>a[a.length-1+off]; // off=0が最新
+// aがbを上抜けた(within本以内)
+function crossedAbove(a, b, within=3){
+  for(let off=0; off>-within; off--){
+    const i=a.length-1+off;
+    if(i<1) break;
+    const bi=(typeof b==='number')? b : b[i], bp=(typeof b==='number')? b : b[i-1];
+    if(a[i]==null||a[i-1]==null||bi==null||bp==null) continue;
+    if(a[i]>bi && a[i-1]<=bp) return true;
+  }
+  return false;
+}
+function crossedBelow(a, b, within=3){
+  for(let off=0; off>-within; off--){
+    const i=a.length-1+off;
+    if(i<1) break;
+    const bi=(typeof b==='number')? b : b[i], bp=(typeof b==='number')? b : b[i-1];
+    if(a[i]==null||a[i-1]==null||bi==null||bp==null) continue;
+    if(a[i]<bi && a[i-1]>=bp) return true;
+  }
+  return false;
+}
+const fmtN=(v,d=1)=> v==null? '—' : Number(v).toFixed(d);
+
+/* ---------- 20指標の定義 ----------
+   ctx = { candles, closes, price, atr, regime('trend'|'range'|'mid'),
+           dailyPrev(前日日足), pair, fmtP(価格フォーマッタ) } */
+const INDICATORS = [
+{ id:'smaCross', name:'移動平均線クロス(5/25/75)', group:'trend', weight:1.5,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<80) return null;
+    const s5=smaArr(closes,5), s25=smaArr(closes,25), s75=smaArr(closes,75);
+    const c=last(closes);
+    let sig=0, txt='短期と中期の移動平均線に明確な方向はありません';
+    if(crossedAbove(s5,s25) && c>last(s75)){ sig=1; txt='ゴールデンクロス(短期線が中期線を上抜け)が発生し、長期線の上にいます。上昇の流れが始まったサインです'; }
+    else if(crossedBelow(s5,s25) && c<last(s75)){ sig=-1; txt='デッドクロス(短期線が中期線を下抜け)が発生し、長期線の下にいます。下落の流れが始まったサインです'; }
+    else if(last(s5)>last(s25) && c>last(s75)){ sig=0.5; txt='移動平均線が上昇の並び(短期>中期、価格>長期)を保っています'; }
+    else if(last(s5)<last(s25) && c<last(s75)){ sig=-0.5; txt='移動平均線が下落の並び(短期<中期、価格<長期)を保っています'; }
+    return {value:`5:${ctx.fmtP(last(s5))} / 25:${ctx.fmtP(last(s25))}`, signal:sig, text:txt};
+  }},
+{ id:'ema', name:'指数平滑移動平均(EMA 12/26)', group:'trend', weight:1.0,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<30) return null;
+    const e12=emaArr(closes,12), e26=emaArr(closes,26);
+    const r12=last(e12)>at(e12,-1), r26=last(e26)>at(e26,-1);
+    let sig=0, txt='EMAに明確な方向はありません';
+    if(last(e12)>last(e26)){ sig = (r12&&r26)? 1:0.3; txt=(r12&&r26)?'短期EMAが中期EMAの上で、両方とも上向きです。素直な上昇形です':'短期EMAが中期EMAの上にありますが、傾きは弱めです'; }
+    else if(last(e12)<last(e26)){ sig = (!r12&&!r26)? -1:-0.3; txt=(!r12&&!r26)?'短期EMAが中期EMAの下で、両方とも下向きです。素直な下落形です':'短期EMAが中期EMAの下にありますが、傾きは弱めです'; }
+    return {value:`12:${ctx.fmtP(last(e12))} / 26:${ctx.fmtP(last(e26))}`, signal:sig, text:txt};
+  }},
+{ id:'macd', name:'MACD(12,26,9)', group:'trend', weight:1.5,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<40) return null;
+    const {macd,signal,hist}=macdArr(closes);
+    let sig=0, txt='MACDは判断を保留する位置です';
+    const histFlipUp = last(hist)!=null && last(hist)>0 && at(hist,-1)!=null && at(hist,-1)<=0;
+    const histFlipDn = last(hist)!=null && last(hist)<0 && at(hist,-1)!=null && at(hist,-1)>=0;
+    if(crossedAbove(macd,signal)||histFlipUp){ sig=1; txt='MACDが買い転換(シグナル線を上抜け)しました。上昇の勢いが出始めたサインです'; }
+    else if(crossedBelow(macd,signal)||histFlipDn){ sig=-1; txt='MACDが売り転換(シグナル線を下抜け)しました。下落の勢いが出始めたサインです'; }
+    else if(last(hist)!=null&&last(hist)>0){ sig=0.4; txt='MACDは買い優勢の状態を維持しています'; }
+    else if(last(hist)!=null&&last(hist)<0){ sig=-0.4; txt='MACDは売り優勢の状態を維持しています'; }
+    return {value:fmtN(last(macd),4), signal:sig, text:txt};
+  }},
+{ id:'ichimoku', name:'一目均衡表', group:'trend', weight:2.0,
+  calc(ctx){
+    const {candles,closes}=ctx;
+    if(candles.length<80) return null;
+    const {tenkan,kijun,senkouA,senkouB}=ichimokuArr(candles);
+    const c=last(closes), i=closes.length-1;
+    const cloudTop=Math.max(senkouA[i]??-Infinity, senkouB[i]??-Infinity);
+    const cloudBot=Math.min(senkouA[i]??Infinity, senkouB[i]??Infinity);
+    const condT = last(tenkan)!=null && last(kijun)!=null && last(tenkan)>last(kijun);
+    const condC = i-26>=0 && c>closes[i-26];             // 遅行スパン
+    const condK = senkouA[i]!=null && c>cloudTop;        // 雲の上
+    const bull=[condT,condC,condK].filter(Boolean).length;
+    const condTs=!condT, condCs=i-26>=0&&c<closes[i-26], condKs=senkouB[i]!=null&&c<cloudBot;
+    const bear=[condTs,condCs,condKs].filter(Boolean).length;
+    let sig=0, txt='雲の中や境界にいて、方向感が出ていません';
+    if(bull===3){ sig=1; txt='三役好転(転換線・遅行スパン・雲すべてが買い)が成立。一目均衡表で最も強い買いサインです'; }
+    else if(bear===3){ sig=-1; txt='三役逆転(すべてが売り)が成立。一目均衡表で最も強い売りサインです'; }
+    else if(bull===2){ sig=0.5; txt='買い条件が3つのうち2つ揃っています'; }
+    else if(bear===2){ sig=-0.5; txt='売り条件が3つのうち2つ揃っています'; }
+    else if(condK){ sig=0.3; txt='価格は雲の上にあり、上昇側で推移しています'; }
+    else if(condKs){ sig=-0.3; txt='価格は雲の下にあり、下落側で推移しています'; }
+    return {value:`雲: ${ctx.fmtP(cloudBot)}〜${ctx.fmtP(cloudTop)}`, signal:sig, text:txt};
+  }},
+{ id:'sar', name:'パラボリックSAR', group:'trend', weight:1.0,
+  calc(ctx){
+    const {candles}=ctx;
+    if(candles.length<20) return null;
+    const {sar,up}=sarArr(candles);
+    const u=last(up), pu=at(up,-1), ppu=at(up,-2);
+    let sig=0, txt='';
+    if(u===true && (pu===false||ppu===false)){ sig=1; txt='SARの点が価格の下に転換しました。上昇トレンド入りのサインです'; }
+    else if(u===false && (pu===true||ppu===true)){ sig=-1; txt='SARの点が価格の上に転換しました。下落トレンド入りのサインです'; }
+    else if(u===true){ sig=0.4; txt='SARは価格の下にあり、上昇トレンド継続中です'; }
+    else if(u===false){ sig=-0.4; txt='SARは価格の上にあり、下落トレンド継続中です'; }
+    return {value:ctx.fmtP(last(sar)), signal:sig, text:txt};
+  }},
+{ id:'adx', name:'ADX / DMI(14)', group:'trend', weight:1.0,
+  calc(ctx){
+    const {candles}=ctx;
+    if(candles.length<45) return null;
+    const {adx,pdi,mdi}=adxArr(candles);
+    const a=last(adx);
+    if(a==null) return null;
+    let sig=0, txt=`ADX(トレンドの強さ)は${fmtN(a)}で、方向感の乏しい相場です`;
+    if(a>=20){
+      if(crossedAbove(pdi,mdi)){ sig=1; txt=`+DIが−DIを上抜け、ADX${fmtN(a)}。トレンドを伴った買いサインです`; }
+      else if(crossedBelow(pdi,mdi)){ sig=-1; txt=`−DIが+DIを上抜け、ADX${fmtN(a)}。トレンドを伴った売りサインです`; }
+      else if(last(pdi)>last(mdi)){ sig=0.4; txt=`上昇方向の力が優勢で、ADX${fmtN(a)}とトレンドが出ています`; }
+      else { sig=-0.4; txt=`下落方向の力が優勢で、ADX${fmtN(a)}とトレンドが出ています`; }
+    }
+    return {value:`ADX:${fmtN(a)}`, signal:sig, text:txt};
+  }},
+{ id:'kairi', name:'移動平均乖離率(25SMA)', group:'trend', weight:0.5,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<26) return null;
+    const s25=smaArr(closes,25);
+    const dev=(last(closes)-last(s25))/last(s25)*100;
+    let sig=0, txt=`価格は25本平均から${fmtN(dev,2)}%の位置で、行き過ぎはありません`;
+    if(dev<=-2){ sig=1; txt=`平均から${fmtN(dev,2)}%も下に離れ、売られすぎです。平均への戻り(反発)が起きやすい水準です`; }
+    else if(dev>=2){ sig=-1; txt=`平均から+${fmtN(dev,2)}%も上に離れ、買われすぎです。平均への戻り(反落)が起きやすい水準です`; }
+    return {value:`${fmtN(dev,2)}%`, signal:sig, text:txt};
+  }},
+{ id:'rsi', name:'RSI(14)', group:'osc', weight:1.5,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<20) return null;
+    const r=rsiArr(closes);
+    const v=last(r);
+    if(v==null) return null;
+    let sig=0, txt=`RSI(買われすぎ・売られすぎの体温計)は${fmtN(v)}で中立圏です`;
+    if(crossedAbove(r,30)){ sig=1; txt=`RSIが売られすぎ圏(30以下)から上に抜けました。反発開始のサインです`; }
+    else if(crossedBelow(r,70)){ sig=-1; txt=`RSIが買われすぎ圏(70以上)から下に抜けました。反落開始のサインです`; }
+    else if(v<=30){ sig=0.7; txt=`RSIは${fmtN(v)}で売られすぎです。そろそろ反発が意識される水準です`; }
+    else if(v>=70){ sig=-0.7; txt=`RSIは${fmtN(v)}で買われすぎです。そろそろ反落が意識される水準です`; }
+    return {value:fmtN(v), signal:sig, text:txt};
+  }},
+{ id:'stoch', name:'ストキャスティクス(14,3,3)', group:'osc', weight:1.0,
+  calc(ctx){
+    const {candles}=ctx;
+    if(candles.length<25) return null;
+    const {k,d}=stochArr(candles);
+    const kv=last(k), dv=last(d);
+    if(kv==null||dv==null) return null;
+    let sig=0, txt=`%K=${fmtN(kv)}で中立圏です`;
+    if(kv<=25 && dv<=25 && crossedAbove(k,d)){ sig=1; txt='売られすぎ圏で%Kが%Dを上抜けました。短期反発の買いサインです'; }
+    else if(kv>=75 && dv>=75 && crossedBelow(k,d)){ sig=-1; txt='買われすぎ圏で%Kが%Dを下抜けました。短期反落の売りサインです'; }
+    else if(kv<=20&&dv<=20){ sig=0.4; txt=`売られすぎ圏(%K=${fmtN(kv)})にいます`; }
+    else if(kv>=80&&dv>=80){ sig=-0.4; txt=`買われすぎ圏(%K=${fmtN(kv)})にいます`; }
+    return {value:`%K:${fmtN(kv)} %D:${fmtN(dv)}`, signal:sig, text:txt};
+  }},
+{ id:'cci', name:'CCI(20)', group:'osc', weight:0.8,
+  calc(ctx){
+    const {candles}=ctx;
+    if(candles.length<25) return null;
+    const c=cciArr(candles);
+    const v=last(c);
+    if(v==null) return null;
+    let sig=0, txt=`CCIは${fmtN(v,0)}で通常の範囲です`;
+    if(crossedAbove(c,-100)){ sig=1; txt='CCIが−100を上抜けました。売られすぎからの回復サインです'; }
+    else if(crossedBelow(c,100)){ sig=-1; txt='CCIが+100を下抜けました。買われすぎからの失速サインです'; }
+    else if(v<-100){ sig=0.2; txt=`CCIは${fmtN(v,0)}で売られすぎ圏です`; }
+    else if(v>100){ sig=-0.2; txt=`CCIは${fmtN(v,0)}で買われすぎ圏です`; }
+    return {value:fmtN(v,0), signal:sig, text:txt};
+  }},
+{ id:'willr', name:'ウィリアムズ%R(14)', group:'osc', weight:0.8,
+  calc(ctx){
+    const {candles}=ctx;
+    if(candles.length<20) return null;
+    const w=willrArr(candles);
+    const v=last(w);
+    if(v==null) return null;
+    let sig=0, txt=`%Rは${fmtN(v,0)}で中立圏です`;
+    if(crossedAbove(w,-80)){ sig=1; txt='%Rが売られすぎ圏(−80以下)から上抜けました。反発の買いサインです'; }
+    else if(crossedBelow(w,-20)){ sig=-1; txt='%Rが買われすぎ圏(−20以上)から下抜けました。反落の売りサインです'; }
+    else if(v<=-80){ sig=0.3; txt=`%Rは${fmtN(v,0)}で売られすぎ圏です`; }
+    else if(v>=-20){ sig=-0.3; txt=`%Rは${fmtN(v,0)}で買われすぎ圏です`; }
+    return {value:fmtN(v,0), signal:sig, text:txt};
+  }},
+{ id:'rci', name:'RCI(9/26)', group:'osc', weight:0.8,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<30) return null;
+    const r9=rciArr(closes,9), r26=rciArr(closes,26);
+    const v9=last(r9), v26=last(r26);
+    if(v9==null||v26==null) return null;
+    const turnUp9 = v9>at(r9,-1), turnDn9 = v9<at(r9,-1);
+    let sig=0, txt=`RCI(9)=${fmtN(v9,0)} / RCI(26)=${fmtN(v26,0)}で明確なサインはありません`;
+    if(v9<=-80&&v26<=-80&&turnUp9){ sig=1; txt='短期・中期RCIがともに底値圏で、上向きに転換し始めました。反転買いのサインです'; }
+    else if(v9>=80&&v26>=80&&turnDn9){ sig=-1; txt='短期・中期RCIがともに天井圏で、下向きに転換し始めました。反転売りのサインです'; }
+    else if(v9<=-80){ sig=0.3; txt=`短期RCIが${fmtN(v9,0)}と底値圏です`; }
+    else if(v9>=80){ sig=-0.3; txt=`短期RCIが${fmtN(v9,0)}と天井圏です`; }
+    return {value:`9:${fmtN(v9,0)} / 26:${fmtN(v26,0)}`, signal:sig, text:txt};
+  }},
+{ id:'roc', name:'ROC 変化率(12)', group:'osc', weight:0.5,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<15) return null;
+    const r=rocArr(closes);
+    const v=last(r);
+    if(v==null) return null;
+    let sig=0, txt=`12本前と比べた変化率は${fmtN(v,2)}%です`;
+    if(crossedAbove(r,0)){ sig=1; txt='変化率がマイナスからプラスに転じました。勢いが上向きに変わったサインです'; }
+    else if(crossedBelow(r,0)){ sig=-1; txt='変化率がプラスからマイナスに転じました。勢いが下向きに変わったサインです'; }
+    else if(v>0){ sig=0.2; txt=`変化率は+${fmtN(v,2)}%で上昇の勢いを保っています`; }
+    else if(v<0){ sig=-0.2; txt=`変化率は${fmtN(v,2)}%で下落の勢いを保っています`; }
+    return {value:`${fmtN(v,2)}%`, signal:sig, text:txt};
+  }},
+{ id:'boll', name:'ボリンジャーバンド(20,±2σ)', group:'vol', weight:1.2,
+  calc(ctx){
+    const {closes,regime}=ctx;
+    if(closes.length<25) return null;
+    const {mid,upper,lower}=bollArr(closes);
+    const c=last(closes), u=last(upper), l=last(lower), m=last(mid);
+    if(u==null) return null;
+    let sig=0, txt='バンドの中央付近で落ち着いています';
+    if(regime==='trend'){
+      if(c>=u){ sig=1; txt='上のバンドに沿って上昇中(バンドウォーク)。トレンド相場では強い上昇継続のサインです'; }
+      else if(c<=l){ sig=-1; txt='下のバンドに沿って下落中(バンドウォーク)。トレンド相場では強い下落継続のサインです'; }
+      else if(c>m){ sig=0.2; txt='バンド中央より上で推移しています'; }
+      else if(c<m){ sig=-0.2; txt='バンド中央より下で推移しています'; }
+    } else {
+      if(c<=l){ sig=1; txt='下のバンド(−2σ)にタッチ。レンジ相場では反発を狙う買いサインです'; }
+      else if(c>=u){ sig=-1; txt='上のバンド(+2σ)にタッチ。レンジ相場では反落を狙う売りサインです'; }
+      else if(c<=l+(u-l)*0.1){ sig=0.5; txt='下のバンドにかなり接近しています'; }
+      else if(c>=u-(u-l)*0.1){ sig=-0.5; txt='上のバンドにかなり接近しています'; }
+    }
+    return {value:`${ctx.fmtP(l)} 〜 ${ctx.fmtP(u)}`, signal:sig, text:txt};
+  }},
+{ id:'atr', name:'ATR(14)— 値動きの大きさ', group:'vol', weight:0,
+  calc(ctx){
+    const {candles}=ctx;
+    if(candles.length<20) return null;
+    const a=atrArr(candles);
+    const v=last(a);
+    if(v==null) return null;
+    return {value:ctx.fmtP(v), signal:0, noScore:true,
+      text:`1本あたりの平均的な値動き幅です。この値を基準に損切り・利確の幅を決めています`};
+  }},
+{ id:'squeeze', name:'バンド幅(スクイーズ検出)', group:'vol', weight:0,
+  calc(ctx){
+    const {closes}=ctx;
+    if(closes.length<60) return null;
+    const {width}=bollArr(closes);
+    const v=last(width);
+    if(v==null) return null;
+    const hist=width.filter(x=>x!=null).slice(-100).sort((a,b)=>a-b);
+    const p10=hist[Math.floor(hist.length*0.1)];
+    const squeezed = v<=p10;
+    return {value:`${fmtN(v*100,2)}%`, signal:0, noScore:true, squeeze:squeezed,
+      text: squeezed? 'バンド幅が極端に縮んでいます(スクイーズ)。まもなく大きく動く可能性があるので注意してください'
+                    : 'バンド幅は通常の範囲です'};
+  }},
+{ id:'pivot', name:'ピボットポイント', group:'struct', weight:1.0,
+  calc(ctx){
+    const {price,atr,dailyPrev}=ctx;
+    if(!dailyPrev||atr==null) return null;
+    const pv=pivotPoints(dailyPrev);
+    const tol=0.3*atr;
+    const lastBar=last(ctx.candles);
+    const bull=lastBar.c>lastBar.o, bear=lastBar.c<lastBar.o;
+    let sig=0, nearName='—', nearDist=Infinity;
+    for(const [name,lv] of Object.entries(pv)){
+      const d=Math.abs(price-lv);
+      if(d<nearDist){ nearDist=d; nearName=`${name}:${ctx.fmtP(lv)}`; }
+    }
+    let txt=`最も近い水準は ${nearName} です`;
+    if((Math.abs(price-pv.S1)<=tol||Math.abs(price-pv.S2)<=tol)){
+      sig=bull?1:0.5; txt=`支持線(S1/S2)付近まで下げて${bull?'反発の動きが出ています。買いが入りやすい場所です':'います。下げ止まれば買いが入りやすい場所です'}`;
+    } else if((Math.abs(price-pv.R1)<=tol||Math.abs(price-pv.R2)<=tol)){
+      sig=bear?-1:-0.5; txt=`抵抗線(R1/R2)付近まで上げて${bear?'失速の動きが出ています。売りが出やすい場所です':'います。上げ止まれば売りが出やすい場所です'}`;
+    }
+    return {value:nearName, signal:sig, text:txt, pivots:pv};
+  }},
+{ id:'fibo', name:'フィボナッチ・リトレースメント', group:'struct', weight:0.8,
+  calc(ctx){
+    const {candles,price}=ctx;
+    if(candles.length<60) return null;
+    const {highs,lows}=findSwings(candles.slice(-120));
+    if(!highs.length||!lows.length) return {value:'—', signal:0, text:'明確なスイング(山・谷)が見つかりません'};
+    const sh=highs[highs.length-1], sl=lows[lows.length-1];
+    const lastBar=last(candles), bull=lastBar.c>lastBar.o, bear=lastBar.c<lastBar.o;
+    let sig=0, txt='フィボナッチの反発ゾーンから外れています', value='—';
+    if(sh.i>sl.i && sh.price>sl.price){ // 直近は上昇スイング → 押し目を測る
+      const range=sh.price-sl.price;
+      const f382=sh.price-range*0.382, f618=sh.price-range*0.618;
+      value=`押し目ゾーン ${ctx.fmtP(f618)}〜${ctx.fmtP(f382)}`;
+      if(price<=f382 && price>=f618){ sig=bull?1:0.5; txt=`上昇の押し目ゾーン(38.2〜61.8%)に入りました。${bull?'反発の動きも出ており、押し目買いが狙える形です':'下げ止まれば押し目買いが狙える場所です'}`; }
+    } else if(sl.i>sh.i && sh.price>sl.price){ // 直近は下降スイング → 戻りを測る
+      const range=sh.price-sl.price;
+      const f382=sl.price+range*0.382, f618=sl.price+range*0.618;
+      value=`戻りゾーン ${ctx.fmtP(f382)}〜${ctx.fmtP(f618)}`;
+      if(price>=f382 && price<=f618){ sig=bear?-1:-0.5; txt=`下落の戻りゾーン(38.2〜61.8%)に入りました。${bear?'失速の動きも出ており、戻り売りが狙える形です':'上げ止まれば戻り売りが狙える場所です'}`; }
+    }
+    return {value, signal:sig, text:txt};
+  }},
+{ id:'sr', name:'サポート/レジスタンス', group:'struct', weight:1.2,
+  calc(ctx){
+    const {candles,price,atr}=ctx;
+    if(candles.length<60||atr==null) return null;
+    const {highs,lows}=findSwings(candles.slice(-150));
+    const res=clusterLevels(highs.map(x=>x.price).filter(p=>p>price), 0.2*atr);
+    const sup=clusterLevels(lows.map(x=>x.price).filter(p=>p<price), 0.2*atr);
+    const nearRes=res.length? res[0] : null;
+    const nearSup=sup.length? sup[sup.length-1] : null;
+    const lastBar=last(candles), bull=lastBar.c>lastBar.o, bear=lastBar.c<lastBar.o;
+    let sig=0, txt='主要な節目から離れた位置にいます';
+    if(nearSup!=null && price-nearSup<=0.3*atr){
+      sig=bull?1:0.5; txt=`直近サポート(${ctx.fmtP(nearSup)})付近です。${bull?'反発が始まっており、買いが入りやすい場所です':'下げ止まれば買いが入りやすい場所です'}`;
+    } else if(nearRes!=null && nearRes-price<=0.3*atr){
+      sig=bear?-1:-0.5; txt=`直近レジスタンス(${ctx.fmtP(nearRes)})付近です。${bear?'失速しており、売りが出やすい場所です':'上値が重くなりやすい場所です'}`;
+    }
+    return {value:`S:${nearSup!=null?ctx.fmtP(nearSup):'—'} / R:${nearRes!=null?ctx.fmtP(nearRes):'—'}`,
+      signal:sig, text:txt, support:nearSup, resistance:nearRes};
+  }},
+{ id:'candle', name:'ローソク足パターン', group:'struct', weight:1.0,
+  calc(ctx){
+    const {candles}=ctx;
+    if(candles.length<5) return null;
+    const p=detectCandlePattern(candles.slice(-3));
+    let txt='特徴的なローソク足の形は出ていません';
+    if(p.signal>0) txt=`${p.name}が出現。買い方が反撃してきた形で、反発のサインです`;
+    else if(p.signal<0) txt=`${p.name}が出現。売り方が反撃してきた形で、反落のサインです`;
+    else if(p.name) txt=`${p.name}が出現。売り買いが拮抗しており、方向が決まるのを待つ場面です`;
+    return {value:p.name||'なし', signal:p.signal, text:txt};
+  }},
+];
+
+const GROUP_NAMES={trend:'トレンド系', osc:'オシレーター系', vol:'ボラティリティ系', struct:'価格構造系'};
+
+// ---------- 相場レジーム(§6.2) ----------
+function detectRegime(candles1h){
+  if(!candles1h || candles1h.length<45) return {mode:'mid', adx:null};
+  const {adx}=adxArr(candles1h);
+  const a=last(adx);
+  if(a==null) return {mode:'mid', adx:null};
+  return {mode: a>=25?'trend': a<20?'range':'mid', adx:a};
+}
+function regimeWeight(group, baseW, mode){
+  if(mode==='trend'){ if(group==='trend') return baseW*1.5; if(group==='osc') return baseW*0.5; }
+  if(mode==='range'){ if(group==='osc') return baseW*1.5; if(group==='trend') return baseW*0.5; }
+  return baseW;
+}
+
+// ---------- 時間足スコア(§6.1) ----------
+function scoreTimeframe(candles, price, regimeMode, dailyPrev, fmtP){
+  const closes=candles.map(c=>c.c);
+  const atr = candles.length>=20 ? last(atrArr(candles)) : null;
+  const ctx={candles, closes, price, atr, regime:regimeMode, dailyPrev, fmtP};
+  const results=[];
+  let wSum=0, sSum=0;
+  for(const ind of INDICATORS){
+    let r=null;
+    try{ r=ind.calc(ctx); }catch(e){ r=null; }
+    if(r==null){ results.push({ind, res:null}); continue; }
+    results.push({ind, res:r});
+    if(ind.weight>0 && !r.noScore){
+      const w=regimeWeight(ind.group, ind.weight, regimeMode);
+      wSum+=w; sSum+=r.signal*w;
+    }
+  }
+  const score = wSum>0? Math.max(-100, Math.min(100, sSum/wSum*100)) : null;
+  return {score, results, atr};
+}
+
+// ---------- 総合スコアと5段階判定 ----------
+const TF_RATIOS={ '1min':5, '5min':8, '15min':10, '30min':12, '1hour':20, '4hour':15, '8hour':10, '1day':12, '1week':8 };
+function compositeScore(tfScores){
+  let rSum=0, sSum=0;
+  for(const [tf, ratio] of Object.entries(TF_RATIOS)){
+    const s=tfScores[tf];
+    if(s==null) continue;
+    rSum+=ratio; sSum+=s*ratio;
+  }
+  return rSum>0? sSum/rSum : null;
+}
+function verdictOf(score){
+  if(score==null) return {key:'none', label:'判定不能', cls:'v-neutral'};
+  if(score>=40) return {key:'strongbuy', label:'🔴 強い買い', cls:'v-strongbuy'};
+  if(score>=15) return {key:'buy', label:'買い', cls:'v-buy'};
+  if(score>-15) return {key:'neutral', label:'⬜ 中立(様子見)', cls:'v-neutral'};
+  if(score>-40) return {key:'sell', label:'売り', cls:'v-sell'};
+  return {key:'strongsell', label:'🔵 強い売り', cls:'v-strongsell'};
+}
+function tfVerdictShort(score){
+  if(score==null) return {label:'データ不足', cls:'n'};
+  if(score>=40) return {label:'強い買い', cls:'b'};
+  if(score>=15) return {label:'買い', cls:'b'};
+  if(score>-15) return {label:'中立', cls:'n'};
+  if(score>-40) return {label:'売り', cls:'s'};
+  return {label:'強い売り', cls:'s'};
+}
+
+// ---------- 売買プラン(§7)+厳選フィルタ(§7.3) ----------
+function buildPlan(opt){
+  // opt: {compScore, tfScores, price, atr, candles1h, pair, fmtP, newsBlock(直近の重要指標か), lastBars3}
+  const {compScore, tfScores, price, atr, candles1h, fmtP}=opt;
+  const reasons=[];
+  if(compScore==null || atr==null || !candles1h || candles1h.length<60){
+    return {status:'skip', reasons:['データが不足しているため売買プランを計算できません'], dir:null};
+  }
+  const dir = compScore>0? 'buy':'sell';
+
+  // 確信度フィルタ
+  if(Math.abs(compScore)<40)
+    reasons.push('シグナルがそこまで強くありません(「強い買い/強い売り」未満)。チャンスは何度でも来ます');
+  // 上位足一致フィルタ
+  const upper=['4hour','8hour','1day'];
+  const against = upper.filter(tf=> tfScores[tf]!=null && (dir==='buy'? tfScores[tf]<-15 : tfScores[tf]>15));
+  if(against.length)
+    reasons.push('長い時間足(' + against.map(t=>({['4hour']:'4時間足',['8hour']:'8時間足',['1day']:'日足'})[t]).join('・') + ')が逆方向です。逆張りは勝率が下がるので見送ります');
+  // 高ボラ警戒
+  const last3=candles1h.slice(-3);
+  if(last3.some(c=> c.h-c.l > 3*atr))
+    reasons.push('直近で急変動を検出しました。急変動の直後は値が飛びやすいため見送ります');
+  // 重要指標フィルタ(§7.4)
+  if(opt.newsBlock)
+    reasons.push(`まもなく${opt.newsBlock}の発表です。発表前後はチャート分析が通用しない値動きになるため見送ります`);
+
+  // 価格計算(§7.2)
+  const {highs,lows}=findSwings(candles1h.slice(-150));
+  const supLevels=clusterLevels(lows.map(x=>x.price).filter(p=>p<price), 0.2*atr);
+  const resLevels=clusterLevels(highs.map(x=>x.price).filter(p=>p>price), 0.2*atr);
+  // 上(下)に節目がない=高値(安値)更新中は、障害物なしとして扱う
+  const support=supLevels.length? supLevels[supLevels.length-1] : null;
+  const resistance=resLevels.length? resLevels[0] : null;
+
+  let entry, entryAlt=null, sl, tp1, tp2, tpNote='';
+  if(dir==='buy'){
+    entry=price;
+    if(support!=null && price-support>=1*atr) entryAlt=support+0.3*atr; // 押し目買い指値の提案
+    sl= support!=null? Math.min(support-0.5*atr, entry-1.5*atr) : entry-1.5*atr;
+    const risk=entry-sl;
+    tp1=entry+1.5*risk;
+    tp2= resistance!=null? resistance-0.2*atr : null;
+    if(tp2!=null && tp2<=entry) tp2=null;
+  } else {
+    entry=price;
+    if(resistance!=null && resistance-price>=1*atr) entryAlt=resistance-0.3*atr; // 戻り売り指値の提案
+    sl= resistance!=null? Math.max(resistance+0.5*atr, entry+1.5*atr) : entry+1.5*atr;
+    const risk=sl-entry;
+    tp1=entry-1.5*risk;
+    tp2= support!=null? support+0.2*atr : null;
+    if(tp2!=null && tp2>=entry) tp2=null;
+  }
+  // 近い方を推奨、遠い方は参考表示(§7.2)
+  let tp=tp1, tpOther=null;
+  if(tp2!=null){
+    const near = dir==='buy'? Math.min(tp1,tp2) : Math.max(tp1,tp2);
+    const far  = dir==='buy'? Math.max(tp1,tp2) : Math.min(tp1,tp2);
+    tp=near; tpOther=far;
+    tpNote = tp===tp2? '(手前の抵抗帯の少し手前に置いています)' : '';
+  }
+  const risk=Math.abs(entry-sl);
+  const reward=Math.abs(tp-entry);
+  const rr= risk>0? reward/risk : 0;
+  if(rr<1.2)
+    reasons.unshift(`リスクリワード比が${rr.toFixed(2)}しかありません。勝ったときの利益より負けたときの損の方が大きい位置なので、今回は見送りです`);
+
+  if(reasons.length) return {status:'skip', reasons, dir, entry, sl, tp, rr};
+  return {status:'entry', dir, entry, entryAlt, sl, tp, tpOther, tpNote, rr, support, resistance, reasons:[]};
+}
+
+/* ================= CORE END ================= */
+</script>
+<script>
+/* ================= TEST START =================
+   セルフテスト(?test=1 で実行)— CORE の既知値検証 */
+function approx(a,b,eps=1e-9){ return a!=null && Math.abs(a-b)<=eps; }
+function runSelfTests(){
+  const mkBars=(closes, spread=0.5)=>closes.map((c,i)=>({t:i*60000, o:c, h:c+spread, l:c-spread, c}));
+  const seq=(n,f)=>Array.from({length:n},(_,i)=>f(i));
+  const tests=[
+    ['SMA(5): 1..10 の最終値は8', ()=>approx(last(smaArr(seq(10,i=>i+1),5)), 8)],
+    ['EMA(3): 定数列5はずっと5', ()=>approx(last(emaArr(seq(10,()=>5),3)), 5)],
+    ['EMA(3): 1..5 の最終値は4', ()=>approx(last(emaArr([1,2,3,4,5],3)), 4)],
+    ['RSI(14): 一方的な上昇は100', ()=>approx(last(rsiArr(seq(30,i=>100+i))), 100)],
+    ['RSI(14): 一方的な下落は0', ()=>approx(last(rsiArr(seq(30,i=>100-i))), 0)],
+    ['MACD: 定数列は0', ()=>{ const m=macdArr(seq(60,()=>100)); return approx(last(m.macd),0,1e-9)&&approx(last(m.hist),0,1e-9); }],
+    ['ATR(14): 毎本値幅1・ギャップなしなら1', ()=>{
+      const bars=seq(30,()=>100).map((c,i)=>({t:i,o:100,h:100.5,l:99.5,c:100}));
+      return approx(last(atrArr(bars)), 1);
+    }],
+    ['ピボット: H110/L90/C100 → P=100,R1=110,S1=90,R2=120,S2=80,R3=130,S3=70', ()=>{
+      const p=pivotPoints({h:110,l:90,c:100});
+      return approx(p.P,100)&&approx(p.R1,110)&&approx(p.S1,90)&&approx(p.R2,120)&&approx(p.S2,80)&&approx(p.R3,130)&&approx(p.S3,70);
+    }],
+    ['RCI(9): 単調上昇は100', ()=>approx(last(rciArr(seq(12,i=>i+1),9)), 100)],
+    ['ウィリアムズ%R: 終値=期間最高値なら0', ()=>{
+      const bars=seq(20,i=>100+i).map((c,i)=>({t:i,o:c-0.5,h:c,l:c-1,c}));
+      return approx(last(willrArr(bars)), 0);
+    }],
+    ['ボリンジャー: 定数列は上下バンド=中央', ()=>{
+      const b=bollArr(seq(30,()=>100));
+      return approx(last(b.upper),100)&&approx(last(b.lower),100);
+    }],
+    ['総合スコア: 1時間足のみ50なら50(按分の検証)', ()=>approx(compositeScore({'1hour':50}), 50)],
+    ['5段階判定: +45=強い買い / -45=強い売り / 0=中立', ()=>
+      verdictOf(45).key==='strongbuy'&&verdictOf(-45).key==='strongsell'&&verdictOf(0).key==='neutral'],
+    ['スイング検出: 山と谷を正しく拾う', ()=>{
+      const cs=[3,2,3,4,5,10,5,4,3,2,1,2,3,4,5,6].map((c,i)=>({t:i,o:c,h:c,l:c,c}));
+      const s=findSwings(cs,5);
+      return s.highs.length===1&&approx(s.highs[0].price,10)&&s.lows.length===1&&approx(s.lows[0].price,1);
+    }],
+    ['クラスタリング: 近い水準がまとまる', ()=>{
+      const lv=clusterLevels([100,100.1,105],0.2);
+      return lv.length===2&&approx(lv[0],100.05)&&approx(lv[1],105);
+    }],
+    ['包み足(陽)を検出', ()=>{
+      const p=detectCandlePattern([{o:105,h:106,l:100,c:101},{o:100.5,h:107,l:100,c:106}]);
+      return p.signal===1;
+    }],
+  ];
+  return tests.map(([name,fn])=>{
+    let ok=false, err=null;
+    try{ ok=!!fn(); }catch(e){ err=e.message; }
+    return {name, ok, err};
+  });
+}
+/* ================= TEST END ================= */
+
+/* ---------------- 設定・共通 ---------------- */
+const PAIRS=[
+  {label:'USD/JPY', gmo:'USD_JPY', td:'USD/JPY', jpy:true,  base:155,  curs:['USD','JPY']},
+  {label:'EUR/JPY', gmo:'EUR_JPY', td:'EUR/JPY', jpy:true,  base:168,  curs:['EUR','JPY']},
+  {label:'GBP/JPY', gmo:'GBP_JPY', td:'GBP/JPY', jpy:true,  base:198,  curs:['GBP','JPY']},
+  {label:'AUD/JPY', gmo:'AUD_JPY', td:'AUD/JPY', jpy:true,  base:102,  curs:['AUD','JPY']},
+  {label:'EUR/USD', gmo:'EUR_USD', td:'EUR/USD', jpy:false, base:1.08, curs:['EUR','USD']},
+  {label:'GBP/USD', gmo:'GBP_USD', td:'GBP/USD', jpy:false, base:1.27, curs:['GBP','USD']},
+  {label:'AUD/USD', gmo:'AUD_USD', td:'AUD/USD', jpy:false, base:0.66, curs:['AUD','USD']},
+];
+const TF_DEFS={
+  '1min' :{label:'1分足',  gmo:'1min',  td:'1min',  scope:'day',  ms:60e3,    need:200},
+  '5min' :{label:'5分足',  gmo:'5min',  td:'5min',  scope:'day',  ms:300e3,   need:200},
+  '15min':{label:'15分足', gmo:'15min', td:'15min', scope:'day',  ms:900e3,   need:200},
+  '30min':{label:'30分足', gmo:'30min', td:'30min', scope:'day',  ms:1800e3,  need:200},
+  '1hour':{label:'1時間足', gmo:'1hour', td:'1h',   scope:'day',  ms:3600e3,  need:200},
+  '4hour':{label:'4時間足', gmo:'4hour', td:'4h',   scope:'year', ms:14400e3, need:200},
+  '8hour':{label:'8時間足', gmo:'8hour', td:null,   scope:'year', ms:28800e3, need:200}, // TDは4hから合成
+  '1day' :{label:'日足',   gmo:'1day',  td:'1day',  scope:'year', ms:86400e3, need:200},
+  '1week':{label:'週足',   gmo:'1week', td:'1week', scope:'year', ms:604800e3,need:120},
+};
+const TF_KEYS=Object.keys(TF_DEFS);
+const MIN_BARS=60; // これ未満の時間足は「データ不足」
+
+const settings={ tdKey:'', colorMode:'jp' };
+function loadSettings(){
+  try{ Object.assign(settings, JSON.parse(localStorage.getItem('fxnavi.settings')||'{}')); }catch(e){}
+  document.body.classList.toggle('color-intl', settings.colorMode==='intl');
+}
+function saveSettings(){ localStorage.setItem('fxnavi.settings', JSON.stringify(settings)); }
+
+// JST(日本時間)ユーティリティ — JSTは夏時間がないので +9h 固定
+const JST_OFF=9*3600e3;
+function jstDate(ms=Date.now()){ return new Date(ms+JST_OFF); } // UTCゲッターで読む
+function jstYmd(ms=Date.now()){
+  const d=jstDate(ms);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+function jstHm(ms){
+  const d=jstDate(ms);
+  return `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+}
+function jstFull(ms){
+  const d=jstDate(ms);
+  return `${d.getUTCMonth()+1}/${d.getUTCDate()} ${jstHm(ms)}`;
+}
+function fmtPriceFactory(pair){ const dec=pair.jpy?3:5; return v=> v==null?'—':Number(v).toFixed(dec); }
+
+/* ---------------- データ取得層(§3) ---------------- */
+const fetchCache=new Map(); // key → {bars, at, ttl}
+async function cachedJson(url, ttlMs){
+  const hit=fetchCache.get(url);
+  if(hit && (hit.ttl===0 || Date.now()-hit.at<hit.ttl)) return hit.data;
+  const res=await fetch(url, {cache:'no-store'});
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data=await res.json();
+  fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs});
+  return data;
+}
+const GMO='https://forex-api.coin.z.com/public/v1';
+
+async function gmoKlines(sym, interval, dateStr, isCurrent){
+  const url=`${GMO}/klines?symbol=${sym}&priceType=BID&interval=${interval}&date=${dateStr}`;
+  const r=await cachedJson(url, isCurrent?60e3:0);
+  if(r.status!==0 || !Array.isArray(r.data)) return [];
+  return r.data.map(k=>({t:+k.openTime, o:+k.open, h:+k.high, l:+k.low, c:+k.close}));
+}
+async function fetchGmoTf(pair, tfKey){
+  const def=TF_DEFS[tfKey];
+  let bars=[];
+  if(def.scope==='day'){
+    let ms=Date.now(), guard=0;
+    const todayStr=jstYmd();
+    while(bars.length<def.need+2 && guard<22){
+      const ds=jstYmd(ms);
+      const chunk=await gmoKlines(pair.gmo, def.gmo, ds, ds===todayStr);
+      bars=chunk.concat(bars);
+      ms-=86400e3; guard++;
+    }
+  } else {
+    let y=jstDate().getUTCFullYear(), guard=0;
+    const thisYear=y;
+    while(bars.length<def.need+2 && guard<6){
+      const chunk=await gmoKlines(pair.gmo, def.gmo, String(y), y===thisYear);
+      bars=chunk.concat(bars);
+      y--; guard++;
+    }
+  }
+  // 重複除去+時刻順
+  const seen=new Set();
+  bars=bars.filter(b=>{ if(seen.has(b.t))return false; seen.add(b.t); return true; })
+           .sort((a,b)=>a.t-b.t)
+           .slice(-(def.need+2));
+  return bars;
+}
+async function fetchAllGmo(pair, onStatus){
+  onStatus('GMOコインAPIに接続中…');
+  const tick=await cachedJson(`${GMO}/ticker`, 30e3); // 疎通確認 + 現在値
+  if(tick.status!==0) throw new Error('gmo status');
+  const tk=(tick.data||[]).find(x=>x.symbol===pair.gmo);
+  onStatus('ローソク足を取得中(GMOコイン)…');
+  const out={};
+  await Promise.all(TF_KEYS.map(async k=>{ out[k]=await fetchGmoTf(pair,k); }));
+  if(TF_KEYS.every(k=>out[k].length<MIN_BARS)) throw new Error('gmo empty');
+  const price= tk? +tk.bid : null;
+  return {source:'GMOコイン 外国為替API', candles:out, price};
+}
+
+async function tdSeries(pair, interval, size, key){
+  const url=`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair.td)}&interval=${interval}&outputsize=${size}&timezone=UTC&apikey=${encodeURIComponent(key)}`;
+  const r=await cachedJson(url, 60e3);
+  if(r.status==='error' || !Array.isArray(r.values)) throw new Error(r.message||'td error');
+  return r.values.map(v=>({
+    t:Date.parse(v.datetime.replace(' ','T')+'Z'),
+    o:+v.open, h:+v.high, l:+v.low, c:+v.close
+  })).sort((a,b)=>a.t-b.t);
+}
+function merge4hTo8h(bars4h){
+  const out=[];
+  const start=bars4h.length%2;
+  for(let i=start;i+1<bars4h.length;i+=2){
+    const a=bars4h[i], b=bars4h[i+1];
+    out.push({t:a.t, o:a.o, h:Math.max(a.h,b.h), l:Math.min(a.l,b.l), c:b.c});
+  }
+  return out;
+}
+async function fetchAllTd(pair, onStatus){
+  const key=settings.tdKey.trim();
+  if(!key) throw new Error('no td key');
+  onStatus('Twelve Data APIから取得中…(無料枠のため少し時間がかかります)');
+  const out={};
+  for(const k of TF_KEYS){
+    const def=TF_DEFS[k];
+    if(k==='8hour') continue;
+    out[k]=await tdSeries(pair, def.td, k==='4hour'?410:def.need+2, key);
+  }
+  out['8hour']=merge4hTo8h(out['4hour']);
+  out['4hour']=out['4hour'].slice(-(TF_DEFS['4hour'].need+2));
+  const price=last(out['1min'])? last(out['1min']).c : null;
+  return {source:'Twelve Data', candles:out, price};
+}
+
+// デモデータ(§9)— 実在しない架空の値動き
+function mulberry32(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function demoCandles(pair){
+  const out={};
+  for(const k of TF_KEYS){
+    const def=TF_DEFS[k];
+    const rnd=mulberry32(k.length*7919 + pair.label.length*104729 + 42);
+    const n=def.need+2;
+    const vol=pair.base*0.0008*Math.sqrt(def.ms/3600e3);
+    let p=pair.base*(0.98+rnd()*0.04);
+    const bars=[];
+    const now=Date.now();
+    let trend=0;
+    for(let i=0;i<n;i++){
+      if(rnd()<0.05) trend=(rnd()-0.5)*vol*0.7; // ときどきトレンド転換
+      const o=p;
+      const drift=trend+(rnd()-0.5)*vol*2;
+      const c=o+drift;
+      const h=Math.max(o,c)+rnd()*vol;
+      const l=Math.min(o,c)-rnd()*vol;
+      bars.push({t:now-(n-i)*def.ms, o, h, l, c});
+      p=c;
+    }
+    out[k]=bars;
+  }
+  return {source:'デモデータ(架空)', candles:out, price:last(out['1min']).c, demo:true};
+}
+
+async function fetchAll(pair, onStatus){
+  let gmoErr=null, tdErr=null;
+  try{ return await fetchAllGmo(pair, onStatus); }catch(e){ gmoErr=e; }
+  try{ return await fetchAllTd(pair, onStatus); }catch(e){ tdErr=e; }
+  const msg = settings.tdKey.trim()
+    ? '為替データAPI(GMOコイン / Twelve Data)に接続できませんでした。'
+    : '為替データAPI(GMOコイン)に接続できませんでした。設定画面でTwelve DataのAPIキーを登録すると予備の取得先を使えます。';
+  if(confirm(msg+'\n\nデモデータ(架空の値動き)で画面の動きを確認しますか?')){
+    return demoCandles(pair);
+  }
+  throw new Error(msg);
+}
+
+/* ---------------- 経済指標カレンダー(§7.4) ---------------- */
+const CAL_URL='https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+const CAL_JA=[
+  [/non-?farm|nfp/i,'米雇用統計(非農業部門雇用者数)'],
+  [/fomc|federal funds rate/i,'FOMC(米政策金利)'],
+  [/\bcpi\b|consumer price/i,'消費者物価指数(CPI)'],
+  [/\bgdp\b/i,'GDP(国内総生産)'],
+  [/boj|bank of japan|日銀/i,'日銀金融政策決定会合関連'],
+  [/ecb|main refinancing/i,'ECB(欧州中銀)政策発表'],
+  [/unemployment rate/i,'失業率'],
+  [/retail sales/i,'小売売上高'],
+  [/\bpmi\b|purchasing managers/i,'PMI(購買担当者景気指数)'],
+  [/\bppi\b|producer price/i,'生産者物価指数(PPI)'],
+  [/rate decision|cash rate|interest rate/i,'政策金利発表'],
+  [/employment change/i,'雇用者数の変化'],
+  [/average (hourly )?earnings/i,'平均賃金'],
+  [/trade balance/i,'貿易収支'],
+  [/consumer confidence|consumer sentiment/i,'消費者信頼感指数'],
+  [/jolts/i,'JOLTS求人件数'],
+  [/\bism\b/i,'ISM景況指数'],
+  [/jobless claims/i,'米新規失業保険申請件数'],
+  [/tankan/i,'日銀短観'],
+];
+function calTitleJa(title){
+  for(const [re,ja] of CAL_JA){ if(re.test(title)) return ja; }
+  return title;
+}
+let calendar={events:null, error:false};
+async function fetchCalendar(){
+  try{
+    const raw=await cachedJson(CAL_URL, 15*60e3);
+    calendar.events=(raw||[]).map(e=>({
+      t:Date.parse(e.date), cur:(e.country||'').toUpperCase(),
+      impact:(e.impact||'').toLowerCase(), title:e.title||'',
+      ja:calTitleJa(e.title||'')
+    })).filter(e=>!isNaN(e.t));
+    calendar.error=false;
+  }catch(e){ calendar.events=null; calendar.error=true; }
+}
+function calEventsFor(pair){
+  if(!calendar.events) return [];
+  return calendar.events.filter(e=>pair.curs.includes(e.cur));
+}
+// 発表1時間前〜30分後の重要指標(見送りフィルタ用)→ 指標名 or null
+function newsBlocking(pair, now=Date.now()){
+  for(const e of calEventsFor(pair)){
+    if(e.impact==='high' && now>=e.t-3600e3 && now<=e.t+1800e3) return e.ja;
+  }
+  return null;
+}
+// 12時間以内の重要指標(事前警告用)
+function newsUpcoming12h(pair, now=Date.now()){
+  return calEventsFor(pair).filter(e=>e.impact==='high' && e.t>now && e.t-now<=12*3600e3);
+}
+
+/* ---------------- 市場セッション(§7.5) ---------------- */
+function sessionInfo(now=Date.now()){
+  const d=jstDate(now);
+  const dow=d.getUTCDay(), h=d.getUTCHours(); // JSTの曜日・時刻
+  const closed = (dow===6&&h>=6)||dow===0||(dow===1&&h<6);
+  if(closed) return {label:'🚫 市場クローズ(土日)', warn:true, closed:true};
+  if(h>=5&&h<8)  return {label:'🌅 早朝(スプレッド拡大注意)', warn:true,
+    note:'早朝はスプレッド(売値と買値の差)が広がりやすく不利な時間帯です'};
+  if(h>=8&&h<16) return {label:'🗾 東京時間', note:'東京時間: 比較的おだやかな値動きの時間帯'};
+  if(h>=16&&h<21)return {label:'🇬🇧 ロンドン時間', note:'ロンドン時間: 値動きが活発になる時間帯'};
+  if(h>=21||h<2) return {label:'🗽 NY時間', note:'NY時間: 最も取引が活発。米国の経済指標もこの時間帯に集中'};
+  return {label:'🌃 NY終盤(閑散)', note:'取引が少なく値が飛びやすい時間帯です'};
+}
+</script>
+<script>
+/* ---------------- 用語集(§8.4) ---------------- */
+const GLOSSARY=[
+  ['指値(さしね)','「この価格になったら売買する」という予約注文。利益確定によく使われます。例: 155円で買ったものを156円の指値で売る'],
+  ['逆指値(ぎゃくさしね)','「この価格まで不利な方向に動いたら決済する」という予約注文。損切りに使う保険で、必ず入れることを強くおすすめします'],
+  ['損切り','予想が外れたときに小さな損失で確定させること。損切りできないことがFXで退場する一番の原因です'],
+  ['pips(ピップス)','値動きの単位。円が絡む通貨ペアでは0.01円=1pip、それ以外は0.0001=1pipです'],
+  ['スプレッド','売値と買値の差。実質的な取引コストで、早朝や指標発表時に広がります'],
+  ['レバレッジ','預けた資金の何倍もの金額を取引できる仕組み。利益も損失も倍になります。国内FXは最大25倍'],
+  ['リスクリワード比(RR)','負けたときの損1に対して、勝ったときの利益がいくつになるかの比率。1.5以上が望ましいとされます'],
+  ['経済指標','各国が発表する経済の統計データ。発表の瞬間は1分で1円動くこともあり、テクニカル分析が通用しません'],
+  ['雇用統計(米)','毎月第1金曜の夜(日本時間21:30/22:30)に発表される米国の雇用データ。世界で最も相場を動かす指標です'],
+  ['FOMC','米国の政策金利を決める会合(年8回)。発表と会見で相場が大きく動きます'],
+  ['日銀金融政策決定会合','日本の政策金利を決める会合。円が絡む通貨ペアが大きく動きます'],
+  ['移動平均線(SMA)','過去n本の終値の平均をつないだ線。価格の大きな流れを示し、短期線が中期線を上抜くと「ゴールデンクロス(買い)」です'],
+  ['EMA(指数平滑移動平均)','直近の価格を重視した移動平均線。SMAより反応が早いのが特徴です'],
+  ['MACD(マックディー)','2本のEMAの差から勢いの変化を見る指標。シグナル線とのクロスが売買サインです'],
+  ['一目均衡表','日本生まれの総合指標。「雲」と呼ばれる帯より価格が上なら買い優勢。3条件が揃う「三役好転」は強い買いサインです'],
+  ['パラボリックSAR','価格に沿って点を打ち、点が価格の下→上昇トレンド、上→下落トレンドと判断します'],
+  ['ADX / DMI','トレンドの「強さ」を測る指標。ADXが25以上ならトレンド相場、20未満ならレンジ相場と判断します'],
+  ['移動平均乖離率','価格が移動平均線からどれだけ離れているか。離れすぎは平均に戻る力が働きやすくなります'],
+  ['RSI','買われすぎ・売られすぎを0〜100で表す「体温計」。70以上は買われすぎ、30以下は売られすぎです'],
+  ['ストキャスティクス','期間中の高値・安値に対する現在位置から、買われすぎ・売られすぎを見る指標です'],
+  ['CCI','平均的な価格からのズレを表す指標。±100を超えると行き過ぎと判断します'],
+  ['ウィリアムズ%R','ストキャスに似た指標で0〜−100で表示。−80以下が売られすぎ、−20以上が買われすぎです'],
+  ['RCI','時間と価格の順位の相関から過熱感を見る指標。+80以上は天井圏、−80以下は底値圏です'],
+  ['ROC(変化率)','n本前と比べて何%動いたか。0ラインを上抜けば勢いが上向きです'],
+  ['ボリンジャーバンド','移動平均線の上下に統計的な帯(±2σ)を引いた指標。レンジ相場では帯で反発、トレンド相場では帯に沿って進みます(バンドウォーク)'],
+  ['ATR','1本あたりの平均的な値動き幅。損切り・利確の幅を決める物差しに使います'],
+  ['スクイーズ','ボリンジャーバンドの幅が極端に縮んだ状態。エネルギーを溜めており、まもなく大きく動く前兆とされます'],
+  ['ピボットポイント','前日の高値・安値・終値から計算する支持線(S1〜S3)・抵抗線(R1〜R3)。世界中のトレーダーが意識する水準です'],
+  ['フィボナッチ・リトレースメント','上昇(下落)の何%戻したかを測る物差し。38.2%・50%・61.8%の押し・戻りで反発しやすいとされます'],
+  ['サポート/レジスタンス','過去に何度も反発した価格帯。サポート(下値支持)では買い、レジスタンス(上値抵抗)では売りが出やすくなります'],
+  ['ローソク足パターン','ローソク足の形から売り買いの攻防を読む方法。包み足・ピンバー・明けの明星などがあります'],
+  ['トレンド相場 / レンジ相場','一方向に動き続けるのがトレンド相場、一定の幅で往復するのがレンジ相場。有効な指標が異なるため、本アプリはADXで自動判別しています'],
+];
+const IND_DETAILS={
+  smaCross:'5本・25本・75本の移動平均線の並びとクロスを見ています。短期線が中期線を上抜く「ゴールデンクロス」は上昇の始まり、下抜く「デッドクロス」は下落の始まりのサインです。長期線(75)との位置関係で大きな流れも確認しています。',
+  ema:'直近の価格を重視するEMAの12本と26本を比較しています。短期EMAが上にあり両方とも上向きなら、素直な上昇トレンドです。',
+  macd:'EMAの差(MACD線)とその平均(シグナル線)のクロス、およびヒストグラムのプラス/マイナス転換を見ています。トレンドの転換を比較的早く捉えられる定番指標です。',
+  ichimoku:'転換線と基準線の位置、遅行スパンと26本前の価格、価格と雲の位置の3条件を確認しています。3つすべて揃う「三役好転/逆転」は一目均衡表で最強のサインとされます。',
+  sar:'価格を追いかける点(SAR)が価格の上下どちらにあるかでトレンドを判断します。点が反対側に移る瞬間がトレンド転換のサインです。',
+  adx:'ADXはトレンドの「強さ」だけを測ります(方向は+DI/−DIで判断)。本アプリではADXを相場のレジーム判定(トレンド/レンジ)にも使い、指標の重みを自動で切り替えています。',
+  kairi:'価格が25本移動平均からどれだけ%で離れているかです。±2%を超えると行き過ぎと判断し、平均への戻りを想定した逆張りシグナルを出します。',
+  rsi:'0〜100で買われすぎ・売られすぎを表します。30以下から上に抜ける瞬間が反発買いの、70以上から下に抜ける瞬間が反落売りの典型的なサインです。',
+  stoch:'売られすぎ圏(20以下)での%Kと%Dのゴールデンクロスを買い、買われすぎ圏(80以上)でのデッドクロスを売りと判断します。レンジ相場で特に有効です。',
+  cci:'平均的な価格からのズレを指数化したもの。−100を上抜けたら売られすぎからの回復、+100を下抜けたら買われすぎからの失速と判断します。',
+  willr:'期間中の高値・安値の範囲のどこにいるかを0〜−100で表します。RSIやストキャスと合わせて過熱感の確認に使います。',
+  rci:'時間順と価格順の相関で、じわじわ上げ続けている(+100に接近)・下げ続けている(−100に接近)を検出します。短期(9)と中期(26)の両方が底値圏から上向くと信頼度の高い買いサインです。',
+  roc:'n本前と比べた変化率で「勢い」を直接測ります。0ラインのクロスが勢いの転換点です。',
+  boll:'統計的に価格の約95%が収まる帯(±2σ)です。重要なのは相場の状態で使い方が逆になること: レンジでは帯で反発を狙い、トレンドでは帯に沿った動き(バンドウォーク)についていきます。本アプリはADXで自動的に使い分けています。',
+  atr:'1本あたりの平均的な値動き幅で、売買シグナルには使いません。「損切りは1.5ATR分離す」のように、損切り・利確の距離を相場の呼吸に合わせるために使います。',
+  squeeze:'ボリンジャーバンドの幅が直近100本の下位10%まで縮むと「スクイーズ」と判定します。大きく動く前兆なので、方向のシグナルではなく注意喚起として表示します。',
+  pivot:'前日の値動きから機械的に計算される支持線・抵抗線です。世界中のトレーダーが同じ水準を見ているため、実際にそこで反発・反落が起きやすくなります。',
+  fibo:'直近の山と谷の間の38.2%〜61.8%押し(戻し)は、トレンド継続の絶好の仕掛け場所とされます。ゾーンに入って反発の兆しが出たときにシグナルを出します。',
+  sr:'過去に何度も反発したスイングの高値・安値を自動で集め、近いものをまとめて主要な節目を検出しています。節目への接近と反発・反落の組み合わせで判断します。',
+  candle:'直近のローソク足の形から売り買いの攻防を読みます。包み足(前の足を丸ごと包む)、ピンバー(長いヒゲ)、明けの明星・宵の明星(3本の反転形)を検出します。',
+};
+
+/* ---------------- 分析の実行 ---------------- */
+const $=(id)=>document.getElementById(id);
+let lastAnalysis=null;
+let chartTf='1hour';
+
+function setStatus(msg, isError=false){
+  $('statusLine').textContent=msg;
+  $('statusLine').classList.toggle('error', isError);
+}
+function currentPair(){ return PAIRS[$('pairSelect').selectedIndex]||PAIRS[0]; }
+
+async function analyze(){
+  const btn=$('analyzeBtn');
+  if(btn.disabled) return;
+  btn.disabled=true;
+  btn.innerHTML='<span class="spin"></span>分析中…';
+  try{
+    const pair=currentPair();
+    const fmtP=fmtPriceFactory(pair);
+    const calP=fetchCalendar();
+    const data=await fetchAll(pair, m=>setStatus(m));
+    await calP;
+    setStatus('指標を計算中…');
+    await new Promise(r=>setTimeout(r,10)); // 描画を挟む
+
+    const now=Date.now();
+    // 確定足のみで判定(§4)。進行中の足は落とす
+    const conf={};
+    for(const k of TF_KEYS){
+      const def=TF_DEFS[k], all=data.candles[k]||[];
+      conf[k]= all.length && last(all).t+def.ms>now ? all.slice(0,-1) : all.slice();
+    }
+    const price = data.price ?? (conf['1min'].length? last(conf['1min']).c : null);
+    if(price==null || conf['1hour'].length<MIN_BARS) throw new Error('十分なデータを取得できませんでした');
+
+    const regime=detectRegime(conf['1hour']);
+    const dailyPrev=conf['1day'].length? last(conf['1day']) : null;
+
+    const tfResults={}, tfScores={};
+    for(const k of TF_KEYS){
+      if(conf[k].length<MIN_BARS){ tfResults[k]=null; tfScores[k]=null; continue; }
+      const r=scoreTimeframe(conf[k], price, regime.mode, dailyPrev, fmtP);
+      tfResults[k]=r; tfScores[k]=r.score;
+    }
+    const comp=compositeScore(tfScores);
+    const verdict=verdictOf(comp);
+    const atr1h=tfResults['1hour']? tfResults['1hour'].atr : null;
+    const plan=buildPlan({
+      compScore:comp, tfScores, price, atr:atr1h, candles1h:conf['1hour'], fmtP,
+      newsBlock: data.demo? null : newsBlocking(pair, now),
+    });
+
+    lastAnalysis={pair, fmtP, data, conf, price, regime, tfResults, tfScores, comp, verdict, plan, at:now};
+    renderAll();
+    const lastT=conf['1hour'].length? last(conf['1hour']).t+TF_DEFS['1hour'].ms : now;
+    setStatus(`分析完了 ${jstFull(now)}(JST) | データ: ${data.source} | 最新確定足: ${jstFull(lastT)}`);
+    $('footerSource').textContent=`データソース: ${data.source} / 最終取得: ${jstFull(now)}(JST)`;
+    $('demoBanner').classList.toggle('hidden', !data.demo);
+  }catch(e){
+    setStatus(`エラー: ${e.message}`, true);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='🔍 今すぐ分析';
+  }
+}
+
+/* ---------------- 判定理由・注意文(§6.3) ---------------- */
+const REGIME_TEXT={
+  trend:(adx)=>`いまはトレンド相場(ADX ${fmtN(adx)})なので、流れについていく指標を重視しています。`,
+  range:(adx)=>`いまはレンジ相場(ADX ${fmtN(adx)})なので、反発を狙うオシレーター系の指標を重視しています。`,
+  mid:(adx)=>`いまはトレンドとレンジの移行期(ADX ${fmtN(adx)})です。標準の重み付けで判定しています。`,
+};
+function buildReasonText(a){
+  const lines=[];
+  lines.push(REGIME_TEXT[a.regime.mode](a.regime.adx));
+  const r1=a.tfResults['1hour'];
+  if(r1){
+    const contrib=r1.results
+      .filter(x=>x.res && !x.res.noScore && x.ind.weight>0 && Math.abs(x.res.signal)>=0.4)
+      .map(x=>({x, s:Math.abs(x.res.signal)*regimeWeight(x.ind.group,x.ind.weight,a.regime.mode)}))
+      .sort((p,q)=>q.s-p.s).slice(0,2);
+    if(contrib.length){
+      lines.push('1時間足では: '+contrib.map(c=>c.x.res.text.split('。')[0]).join('。 ')+'。');
+    }
+  }
+  const buys=TF_KEYS.filter(k=>a.tfScores[k]!=null&&a.tfScores[k]>=15).length;
+  const sells=TF_KEYS.filter(k=>a.tfScores[k]!=null&&a.tfScores[k]<=-15).length;
+  const avail=TF_KEYS.filter(k=>a.tfScores[k]!=null).length;
+  lines.push(`${avail}本の時間足のうち、買い寄りが${buys}本・売り寄りが${sells}本です。`);
+  return lines.join('<br>');
+}
+function buildWarnings(a){
+  const w=[];
+  const h1=a.tfScores['1hour'], d1=a.tfScores['1day'];
+  if(h1!=null&&d1!=null){
+    if(h1>=15&&d1<=-15) w.push('短期(1時間足)は買い優勢ですが、長期(日足)は下落トレンドです。逆張りになるため慎重に。');
+    if(h1<=-15&&d1>=15) w.push('短期(1時間足)は売り優勢ですが、長期(日足)は上昇トレンドです。逆張りになるため慎重に。');
+  }
+  if(a.comp!=null&&Math.abs(a.comp)<15) w.push('明確なシグナルがありません。取引を見送るのも立派な戦略です。');
+  const sq=a.tfResults['1hour']?.results.find(x=>x.ind.id==='squeeze');
+  if(sq?.res?.squeeze) w.push('値動きが極端に小さくなっています(スクイーズ)。まもなく大きく動く可能性があるため急変に注意。');
+  const sess=sessionInfo();
+  if(sess.note&&sess.warn) w.push(sess.note+'。');
+  if(!a.data.demo){
+    for(const e of newsUpcoming12h(a.pair)){
+      w.push(`${jstFull(e.t)}(JST)に「${e.ja}」(重要度: 高)の発表があります。それまでにポジションを閉じるか、逆指値を必ず入れておいてください。`);
+    }
+    if(calendar.error) w.push('経済指標カレンダーを取得できませんでした。雇用統計(毎月第1金曜の夜)やFOMC・日銀会合の前後は取引を控えてください。');
+  }
+  return w;
+}
+
+/* ---------------- 描画 ---------------- */
+function renderAll(){
+  const a=lastAnalysis;
+  $('results').classList.remove('hidden');
+  // 総合判定
+  const card=$('verdictCard');
+  card.className='card '+a.verdict.cls;
+  $('verdictLabel').textContent=a.verdict.label;
+  $('verdictScore').textContent= a.comp==null? '' : `総合スコア ${a.comp>=0?'+':''}${a.comp.toFixed(0)} / 現在値 ${a.fmtP(a.price)}`;
+  $('meterNeedle').style.left=`${((a.comp??0)+100)/2}%`;
+  $('verdictReason').innerHTML=buildReasonText(a);
+  $('verdictWarns').innerHTML=buildWarnings(a).map(t=>`<div class="warn-item">⚠️ ${t}</div>`).join('');
+  renderPlan(a);
+  renderCalendar(a);
+  renderTfSummary(a);
+  renderIndTable(a);
+  renderChartTabs();
+  renderChart();
+  renderSession();
+}
+const PLAN_HELP={
+  entry:'エントリー価格: 新しくポジションを持つ価格です。「成行」はいますぐの価格で注文することです。',
+  sl:'逆指値(損切り): 予想が外れたときに損失を確定させる保険の注文です。エントリーと同時に必ず入れてください。',
+  tp:'指値(利確): 利益を確定する予約注文です。この価格まで有利に動いたら自動で決済されます。',
+  rr:'リスクリワード比: 負けたときの損1に対して勝ったときの利益がいくつか。1.2未満の場合は見送りにしています。',
+};
+function renderPlan(a){
+  const p=a.plan, f=a.fmtP;
+  const el=$('planBody');
+  if(p.status!=='entry'){
+    el.innerHTML=`<div class="skip-box">
+      <div class="skip-title">⛔ 今回は見送り</div>
+      <div class="skip-reasons">${p.reasons.map(r=>`<div>・${r}</div>`).join('')}</div>
+      <p class="muted plan-note">エントリーしないのも立派な戦略です。条件が揃ったタイミングでまた分析してください。</p>
+    </div>`;
+    return;
+  }
+  const dirTxt=p.dir==='buy'? '<span class="dir-buy">買い(ロング)</span>':'<span class="dir-sell">売り(ショート)</span>';
+  const altNote=p.entryAlt!=null
+    ? `<br><span class="muted">少し待てるなら ${f(p.entryAlt)} まで${p.dir==='buy'?'下がった':'上がった'}ところで${p.dir==='buy'?'買う':'売る'}指値もおすすめ(有利な位置)</span>`
+    : '';
+  const tpOther=p.tpOther!=null? `<br><span class="muted">第2目標(参考): ${f(p.tpOther)}</span>` : '';
+  el.innerHTML=`<table><tbody>
+    <tr><th>方向</th><td>${dirTxt}</td></tr>
+    <tr><th>エントリー<span class="help-q" data-help="entry">?</span></th>
+        <td class="num">${f(p.entry)} <span class="muted small">(成行)</span>${altNote}</td></tr>
+    <tr><th>逆指値(損切り)<span class="help-q" data-help="sl">?</span></th>
+        <td class="num">${f(p.sl)}<br><span class="muted small">ここに必ず入れてください。予想が外れたときの保険です</span></td></tr>
+    <tr><th>指値(利確)<span class="help-q" data-help="tp">?</span></th>
+        <td class="num">${f(p.tp)} <span class="muted small">${p.tpNote||''}</span>${tpOther}</td></tr>
+    <tr><th>リスクリワード比<span class="help-q" data-help="rr">?</span></th>
+        <td class="num">${p.rr.toFixed(2)}</td></tr>
+  </tbody></table>
+  <div id="planHelpBox" class="muted plan-note hidden"></div>`;
+  el.querySelectorAll('.help-q').forEach(q=>{
+    q.addEventListener('click',()=>{
+      const box=$('planHelpBox');
+      box.textContent='💡 '+PLAN_HELP[q.dataset.help];
+      box.classList.remove('hidden');
+    });
+  });
+}
+function renderCalendar(a){
+  const el=$('calBody'), card=$('calCard');
+  if(a.data.demo){ el.innerHTML='<p class="muted">デモモード中はカレンダーを表示しません。</p>'; card.classList.remove('urgent'); return; }
+  if(calendar.error||!calendar.events){
+    el.innerHTML='<p class="muted">⚠️ 経済指標カレンダーを取得できませんでした。<strong>雇用統計(毎月第1金曜の夜)やFOMC・日銀会合の前後は取引を控えてください。</strong></p>';
+    card.classList.remove('urgent');
+    return;
+  }
+  const now=Date.now();
+  const evs=calEventsFor(a.pair).filter(e=>e.t>now-1800e3 && e.t-now<=24*3600e3).sort((x,y)=>x.t-y.t);
+  if(!evs.length){ el.innerHTML='<p class="muted">今後24時間、この通貨ペアに関係する経済指標の予定はありません。</p>'; }
+  else{
+    el.innerHTML=evs.map(e=>{
+      const impCls=e.impact==='high'?'imp-high':e.impact==='medium'?'imp-med':'imp-low';
+      const impTxt=e.impact==='high'?'高':e.impact==='medium'?'中':'低';
+      return `<div class="cal-item"><span class="cal-time">${jstFull(e.t)}</span><span class="imp ${impCls}">重要度: ${impTxt}</span><span>${e.ja}</span><span class="cal-cur">${e.cur}</span></div>`;
+    }).join('');
+  }
+  // 重要度「高」が12時間以内 → 判定カード直下に昇格して強調(§8.1)
+  const urgent=newsUpcoming12h(a.pair).length>0 || newsBlocking(a.pair)!=null;
+  card.classList.toggle('urgent', urgent);
+  if(urgent) $('verdictCard').after(card);
+  else $('planCard').after(card);
+}
+function renderTfSummary(a){
+  $('tfSummary').innerHTML=TF_KEYS.map(k=>{
+    const s=a.tfScores[k], v=tfVerdictShort(s), r=a.tfResults[k];
+    let basis='—';
+    if(r){
+      const top=r.results
+        .filter(x=>x.res&&!x.res.noScore&&x.ind.weight>0&&x.res.signal!==0)
+        .sort((p,q)=>Math.abs(q.res.signal)*q.ind.weight-Math.abs(p.res.signal)*p.ind.weight)[0];
+      if(top) basis=`${top.ind.name.split('(')[0]} ${top.res.signal>0?'買い':'売り'}`;
+      else basis='目立ったシグナルなし';
+    } else basis='本数が足りません';
+    return `<div class="tf-card ${v.cls}">
+      <div class="tf-name">${TF_DEFS[k].label}${s!=null?` <span class="small">${s>=0?'+':''}${s.toFixed(0)}</span>`:''}</div>
+      <div class="tf-verdict ${v.cls}">${v.label}</div>
+      <div class="tf-basis">${basis}</div>
+    </div>`;
+  }).join('');
+}
+function renderIndTable(a){
+  const r=a.tfResults['1hour'];
+  const tbody=$('indTableBody');
+  if(!r){ tbody.innerHTML='<tr><td colspan="4">1時間足のデータが不足しています</td></tr>'; return; }
+  let html='', lastGroup='';
+  for(const {ind,res} of r.results){
+    if(ind.group!==lastGroup){
+      html+=`<tr class="group-head"><td colspan="4">${GROUP_NAMES[ind.group]}</td></tr>`;
+      lastGroup=ind.group;
+    }
+    let badge, text, val;
+    if(res==null){ badge='<span class="badge n">データ不足</span>'; text='計算に必要な本数がありません(判定から除外)'; val='—'; }
+    else{
+      const s=res.signal;
+      badge= res.noScore? '<span class="badge n">参考</span>'
+        : s>=0.5? '<span class="badge b">買い</span>'
+        : s>0?    '<span class="badge b">やや買い</span>'
+        : s<=-0.5?'<span class="badge s">売り</span>'
+        : s<0?    '<span class="badge s">やや売り</span>'
+        : '<span class="badge n">中立</span>';
+      text=res.text; val=res.value;
+    }
+    html+=`<tr class="ind-row" data-ind="${ind.id}"><td>${ind.name}</td><td class="val">${val}</td><td>${badge}</td><td>${text}</td></tr>`;
+  }
+  tbody.innerHTML=html;
+  tbody.querySelectorAll('tr.ind-row').forEach(tr=>{
+    tr.addEventListener('click',()=>{
+      const next=tr.nextElementSibling;
+      if(next&&next.classList.contains('detail-row')){ next.remove(); return; }
+      tbody.querySelectorAll('.detail-row').forEach(x=>x.remove());
+      const d=IND_DETAILS[tr.dataset.ind];
+      if(!d) return;
+      const dr=document.createElement('tr');
+      dr.className='detail-row';
+      dr.innerHTML=`<td colspan="4">📖 ${d}</td>`;
+      tr.after(dr);
+    });
+  });
+}
+
+/* ---------------- チャート(§8.1) ---------------- */
+let lwcLib=null, lwcChart=null, lwcTried=false;
+function loadLwc(){
+  return new Promise(res=>{
+    if(window.LightweightCharts){ lwcLib=window.LightweightCharts; return res(true); }
+    if(lwcTried) return res(false);
+    lwcTried=true;
+    const s=document.createElement('script');
+    s.src='https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js';
+    s.onload=()=>{ lwcLib=window.LightweightCharts; res(true); };
+    s.onerror=()=>res(false);
+    document.head.appendChild(s);
+    setTimeout(()=>res(!!window.LightweightCharts), 8000);
+  });
+}
+function overlayOn(id){ const cb=document.querySelector(`#overlayToggles input[data-ov="${id}"]`); return cb&&cb.checked; }
+function chartColors(){
+  const jp=settings.colorMode!=='intl';
+  return {up: jp?'#ff4d5e':'#22c55e', down: jp?'#3d8bff':'#ef4444'};
+}
+function renderChartTabs(){
+  $('chartTabs').innerHTML=TF_KEYS.map(k=>
+    `<button class="${k===chartTf?'active':''}" data-tf="${k}">${TF_DEFS[k].label}</button>`).join('');
+  $('chartTabs').querySelectorAll('button').forEach(b=>
+    b.addEventListener('click',()=>{ chartTf=b.dataset.tf; renderChartTabs(); renderChart(); }));
+}
+async function renderChart(){
+  const a=lastAnalysis;
+  if(!a) return;
+  const bars=(a.data.candles[chartTf]||[]).slice(-200);
+  if(bars.length<10){ $('lwcBox').innerHTML='<p class="muted" style="padding:20px">この時間足のデータが不足しています</p>'; return; }
+  const ok=await loadLwc();
+  if(ok) renderLwc(a,bars); else renderCanvasChart(a,bars);
+}
+function renderLwc(a,bars){
+  $('chartCanvas').classList.add('hidden');
+  const box=$('lwcBox');
+  box.classList.remove('hidden');
+  box.innerHTML='';
+  if(lwcChart){ try{lwcChart.remove();}catch(e){} lwcChart=null; }
+  const col=chartColors();
+  lwcChart=lwcLib.createChart(box,{
+    layout:{background:{color:'#161d2e'}, textColor:'#9aa7c0'},
+    grid:{vertLines:{color:'#1e2740'}, horzLines:{color:'#1e2740'}},
+    timeScale:{timeVisible:true, secondsVisible:false, borderColor:'#2a3550'},
+    rightPriceScale:{borderColor:'#2a3550'},
+    autoSize:true,
+  });
+  const t=(b)=>Math.floor(b.t/1000)+9*3600; // JST表示
+  const cs=lwcChart.addCandlestickSeries({
+    upColor:col.up, downColor:col.down, wickUpColor:col.up, wickDownColor:col.down, borderVisible:false,
+  });
+  cs.setData(bars.map(b=>({time:t(b), open:b.o, high:b.h, low:b.l, close:b.c})));
+  const lineOf=(vals, color, opt={})=>{
+    const s=lwcChart.addLineSeries({color, lineWidth:1, priceLineVisible:false, lastValueVisible:false, ...opt});
+    s.setData(bars.map((b,i)=>({time:t(b), value:vals[i]})).filter(x=>x.value!=null));
+  };
+  const closes=bars.map(b=>b.c);
+  if(overlayOn('sma')){
+    lineOf(smaArr(closes,5),'#ffd166'); lineOf(smaArr(closes,25),'#4f8cff'); lineOf(smaArr(closes,75),'#b48cff');
+  }
+  if(overlayOn('bb')){
+    const bb=bollArr(closes);
+    lineOf(bb.upper,'#6a7690',{lineStyle:2}); lineOf(bb.mid,'#6a7690'); lineOf(bb.lower,'#6a7690',{lineStyle:2});
+  }
+  if(overlayOn('ichi')){
+    const ic=ichimokuArr(bars);
+    lineOf(ic.senkouA,'rgba(62,207,142,.8)'); lineOf(ic.senkouB,'rgba(255,92,92,.8)');
+  }
+  if(overlayOn('sar')){
+    const {sar}=sarArr(bars);
+    lineOf(sar,'#ffb020',{lineStyle:3, lineWidth:2});
+  }
+  if(overlayOn('pivot')){
+    const pv=lastAnalysis.tfResults['1hour']?.results.find(x=>x.ind.id==='pivot')?.res?.pivots;
+    if(pv) for(const [name,v] of Object.entries(pv))
+      cs.createPriceLine({price:v, color:'#6a7690', lineWidth:1, lineStyle:3, title:name});
+  }
+  if(overlayOn('plan') && a.plan.status==='entry'){
+    cs.createPriceLine({price:a.plan.entry, color:'#ffffff', lineWidth:1, lineStyle:0, title:'エントリー'});
+    cs.createPriceLine({price:a.plan.sl, color:col.down, lineWidth:2, lineStyle:2, title:'逆指値(損切り)'});
+    cs.createPriceLine({price:a.plan.tp, color:col.up, lineWidth:2, lineStyle:2, title:'指値(利確)'});
+  }
+  lwcChart.timeScale().fitContent();
+}
+function renderCanvasChart(a,bars){
+  $('lwcBox').classList.add('hidden');
+  const cv=$('chartCanvas');
+  cv.classList.remove('hidden');
+  const box=$('chartBox');
+  const W=cv.width=box.clientWidth*devicePixelRatio, H=cv.height=box.clientHeight*devicePixelRatio;
+  const g=cv.getContext('2d');
+  g.clearRect(0,0,W,H);
+  const view=bars.slice(-120);
+  const padL=10*devicePixelRatio, padR=72*devicePixelRatio, padT=12*devicePixelRatio, padB=26*devicePixelRatio;
+  let lo=Math.min(...view.map(b=>b.l)), hi=Math.max(...view.map(b=>b.h));
+  if(a.plan.status==='entry'&&chartTf==='1hour'&&overlayOn('plan')){ lo=Math.min(lo,a.plan.sl); hi=Math.max(hi,a.plan.tp); }
+  const pad=(hi-lo)*0.05; lo-=pad; hi+=pad;
+  const X=(i)=>padL+(W-padL-padR)*(i+0.5)/view.length;
+  const Y=(p)=>padT+(H-padT-padB)*(1-(p-lo)/(hi-lo));
+  const col=chartColors();
+  const bw=Math.max(2,(W-padL-padR)/view.length*0.6);
+  // 目盛り
+  g.fillStyle='#6a7690'; g.strokeStyle='#1e2740'; g.font=`${11*devicePixelRatio}px sans-serif`;
+  for(let i=0;i<=4;i++){
+    const p=lo+(hi-lo)*i/4, y=Y(p);
+    g.beginPath(); g.moveTo(padL,y); g.lineTo(W-padR,y); g.stroke();
+    g.fillText(a.fmtP(p), W-padR+6*devicePixelRatio, y+4*devicePixelRatio);
+  }
+  for(let i=0;i<view.length;i+=Math.ceil(view.length/5)){
+    g.fillText(jstFull(view[i].t), X(i)-20*devicePixelRatio, H-8*devicePixelRatio);
+  }
+  // オーバーレイ(SMA25 / ボリンジャー)
+  const closes=view.map(b=>b.c);
+  const drawLine=(vals,color,dash=[])=>{
+    g.strokeStyle=color; g.lineWidth=devicePixelRatio; g.setLineDash(dash.map(d=>d*devicePixelRatio));
+    g.beginPath(); let started=false;
+    vals.forEach((v,i)=>{ if(v==null)return; const x=X(i),y=Y(v); if(!started){g.moveTo(x,y);started=true;}else g.lineTo(x,y); });
+    g.stroke(); g.setLineDash([]);
+  };
+  if(overlayOn('sma')) drawLine(smaArr(closes,25),'#4f8cff');
+  if(overlayOn('bb')){ const bb=bollArr(closes); drawLine(bb.upper,'#6a7690',[4,3]); drawLine(bb.lower,'#6a7690',[4,3]); }
+  // ローソク足
+  for(let i=0;i<view.length;i++){
+    const b=view[i], up=b.c>=b.o;
+    g.strokeStyle=g.fillStyle= up?col.up:col.down;
+    g.lineWidth=devicePixelRatio;
+    g.beginPath(); g.moveTo(X(i),Y(b.h)); g.lineTo(X(i),Y(b.l)); g.stroke();
+    const y1=Y(Math.max(b.o,b.c)), y2=Y(Math.min(b.o,b.c));
+    g.fillRect(X(i)-bw/2, y1, bw, Math.max(devicePixelRatio,y2-y1));
+  }
+  // 売買プランの線
+  if(overlayOn('plan')&&a.plan.status==='entry'){
+    const line=(p,color,label)=>{
+      g.strokeStyle=color; g.lineWidth=devicePixelRatio; g.setLineDash([6*devicePixelRatio,4*devicePixelRatio]);
+      g.beginPath(); g.moveTo(padL,Y(p)); g.lineTo(W-padR,Y(p)); g.stroke(); g.setLineDash([]);
+      g.fillStyle=color; g.fillText(label, padL+4*devicePixelRatio, Y(p)-4*devicePixelRatio);
+    };
+    line(a.plan.entry,'#ffffff','エントリー');
+    line(a.plan.sl,col.down,'逆指値(損切り)');
+    line(a.plan.tp,col.up,'指値(利確)');
+  }
+}
+
+/* ---------------- セッションバッジ・バナー ---------------- */
+function renderSession(){
+  const s=sessionInfo();
+  const b=$('sessionBadge');
+  b.textContent=s.label;
+  b.classList.toggle('warn', !!s.warn);
+  const mb=$('marketBanner');
+  if(s.closed){
+    mb.textContent='🚫 市場クローズ中(土日)。表示は金曜終値時点の分析です。週明けは「窓開き」(金曜終値から離れた価格で始まること)に注意してください。';
+    mb.classList.remove('hidden');
+  } else mb.classList.add('hidden');
+}
+
+/* ---------------- 初期化 ---------------- */
+function initModals(){
+  document.querySelectorAll('[data-close]').forEach(b=>
+    b.addEventListener('click',()=>$(b.dataset.close).classList.remove('show')));
+  document.querySelectorAll('.modal-back').forEach(m=>
+    m.addEventListener('click',e=>{ if(e.target===m&&m.id!=='disclaimerModal') m.classList.remove('show'); }));
+  $('settingsBtn').addEventListener('click',()=>{
+    $('setTdKey').value=settings.tdKey;
+    $('setColorMode').value=settings.colorMode;
+    $('settingsModal').classList.add('show');
+  });
+  $('settingsSave').addEventListener('click',()=>{
+    settings.tdKey=$('setTdKey').value.trim();
+    settings.colorMode=$('setColorMode').value;
+    saveSettings();
+    document.body.classList.toggle('color-intl', settings.colorMode==='intl');
+    $('settingsModal').classList.remove('show');
+    if(lastAnalysis) renderAll();
+  });
+  $('glossBtn').addEventListener('click',()=>{
+    $('glossList').innerHTML=GLOSSARY.map(([t,d])=>
+      `<div class="gloss-item"><dt>${t}</dt><dd>${d}</dd></div>`).join('');
+    $('glossModal').classList.add('show');
+  });
+  if(!localStorage.getItem('fxnavi.disclaimerAck')) $('disclaimerModal').classList.add('show');
+  $('disclaimerOk').addEventListener('click',()=>{
+    localStorage.setItem('fxnavi.disclaimerAck','1');
+    $('disclaimerModal').classList.remove('show');
+  });
+}
+function init(){
+  loadSettings();
+  $('pairSelect').innerHTML=PAIRS.map(p=>`<option>${p.label}</option>`).join('');
+  $('analyzeBtn').addEventListener('click', analyze);
+  document.querySelectorAll('#overlayToggles input').forEach(cb=>cb.addEventListener('change', renderChart));
+  initModals();
+  renderSession();
+  setInterval(renderSession, 30e3);
+  setStatus('通貨ペアを選んで「今すぐ分析」を押してください');
+  if(new URLSearchParams(location.search).get('test')==='1'){
+    const res=runSelfTests();
+    $('testSection').classList.remove('hidden');
+    $('testResults').innerHTML=res.map(r=>
+      `<div class="${r.ok?'pass':'fail'}">${r.ok?'✔':'✘'} ${r.name}${r.err?` — ${r.err}`:''}</div>`).join('')
+      +`<div style="margin-top:8px">${res.filter(r=>r.ok).length} / ${res.length} 件パス</div>`;
+  }
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
