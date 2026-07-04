@@ -101,6 +101,9 @@ header{
   font-size:11px; cursor:pointer; user-select:none;
 }
 .skip-box{padding:4px 0;}
+.ref-plan{margin-top:14px; border:1px dashed var(--line); border-radius:10px; padding:10px 14px;}
+.ref-plan summary{cursor:pointer; color:var(--fg2); font-size:14px; font-weight:700; user-select:none;}
+.ref-plan[open] summary{margin-bottom:6px;}
 .skip-title{font-size:19px; font-weight:800; color:var(--fg2);}
 .skip-reasons{margin-top:8px; display:flex; flex-direction:column; gap:6px;}
 .skip-reasons div{font-size:13.5px; background:var(--bg3); border-radius:8px; padding:8px 12px;}
@@ -1075,7 +1078,7 @@ function buildPlan(opt){
   if(rr<1.2)
     reasons.unshift(`リスクリワード比が${rr.toFixed(2)}しかありません。勝ったときの利益より負けたときの損の方が大きい位置なので、今回は見送りです`);
 
-  if(reasons.length) return {status:'skip', reasons, dir, entry, sl, tp, rr};
+  if(reasons.length) return {status:'skip', reasons, dir, entry, entryAlt, sl, tp, tpOther, tpNote, rr, support, resistance};
   return {status:'entry', dir, entry, entryAlt, sl, tp, tpOther, tpNote, rr, support, resistance, reasons:[]};
 }
 
@@ -1614,23 +1617,13 @@ const PLAN_HELP={
   tp:'指値(利確): 利益を確定する予約注文です。この価格まで有利に動いたら自動で決済されます。',
   rr:'リスクリワード比: 負けたときの損1に対して勝ったときの利益がいくつか。1.2未満の場合は見送りにしています。',
 };
-function renderPlan(a){
-  const p=a.plan, f=a.fmtP;
-  const el=$('planBody');
-  if(p.status!=='entry'){
-    el.innerHTML=`<div class="skip-box">
-      <div class="skip-title">⛔ 今回は見送り</div>
-      <div class="skip-reasons">${p.reasons.map(r=>`<div>・${r}</div>`).join('')}</div>
-      <p class="muted plan-note">エントリーしないのも立派な戦略です。条件が揃ったタイミングでまた分析してください。</p>
-    </div>`;
-    return;
-  }
+function planTableHtml(p, f){
   const dirTxt=p.dir==='buy'? '<span class="dir-buy">買い(ロング)</span>':'<span class="dir-sell">売り(ショート)</span>';
   const altNote=p.entryAlt!=null
     ? `<br><span class="muted">少し待てるなら ${f(p.entryAlt)} まで${p.dir==='buy'?'下がった':'上がった'}ところで${p.dir==='buy'?'買う':'売る'}指値もおすすめ(有利な位置)</span>`
     : '';
   const tpOther=p.tpOther!=null? `<br><span class="muted">第2目標(参考): ${f(p.tpOther)}</span>` : '';
-  el.innerHTML=`<table><tbody>
+  return `<table><tbody>
     <tr><th>方向</th><td>${dirTxt}</td></tr>
     <tr><th>エントリー<span class="help-q" data-help="entry">?</span></th>
         <td class="num">${f(p.entry)} <span class="muted small">(成行)</span>${altNote}</td></tr>
@@ -1639,9 +1632,29 @@ function renderPlan(a){
     <tr><th>指値(利確)<span class="help-q" data-help="tp">?</span></th>
         <td class="num">${f(p.tp)} <span class="muted small">${p.tpNote||''}</span>${tpOther}</td></tr>
     <tr><th>リスクリワード比<span class="help-q" data-help="rr">?</span></th>
-        <td class="num">${p.rr.toFixed(2)}</td></tr>
-  </tbody></table>
-  <div id="planHelpBox" class="muted plan-note hidden"></div>`;
+        <td class="num">${p.rr!=null? p.rr.toFixed(2):'—'}</td></tr>
+  </tbody></table>`;
+}
+function renderPlan(a){
+  const p=a.plan, f=a.fmtP;
+  const el=$('planBody');
+  if(p.status!=='entry'){
+    // 見送り時も「それでも入るなら」の参考データを併記する(§7.3)
+    const dirJa=p.dir==='buy'?'買い':'売り';
+    const refBlock = p.entry!=null? `
+      <details class="ref-plan">
+        <summary>🔎 それでもエントリーするなら(参考データ・非推奨)</summary>
+        <p class="muted plan-note">見送り判定を承知の上での参考情報です。総合スコアが傾いている方向(${dirJa})で、通常時と同じ計算式で算出しています。勝率が下がる条件が出ているため、入る場合も<strong>逆指値(損切り)は必ず</strong>入れてください。</p>
+        ${planTableHtml(p, f)}
+      </details>` : '';
+    el.innerHTML=`<div class="skip-box">
+      <div class="skip-title">⛔ 今回は見送り</div>
+      <div class="skip-reasons">${p.reasons.map(r=>`<div>・${r}</div>`).join('')}</div>
+      <p class="muted plan-note">エントリーしないのも立派な戦略です。条件が揃ったタイミングでまた分析してください。</p>
+    </div>${refBlock}<div id="planHelpBox" class="muted plan-note hidden"></div>`;
+  } else {
+    el.innerHTML=planTableHtml(p, f)+'<div id="planHelpBox" class="muted plan-note hidden"></div>';
+  }
   el.querySelectorAll('.help-q').forEach(q=>{
     q.addEventListener('click',()=>{
       const box=$('planHelpBox');
@@ -1810,10 +1823,11 @@ function renderLwc(a,bars){
     if(pv) for(const [name,v] of Object.entries(pv))
       cs.createPriceLine({price:v, color:'#6a7690', lineWidth:1, lineStyle:3, title:name});
   }
-  if(overlayOn('plan') && a.plan.status==='entry'){
-    cs.createPriceLine({price:a.plan.entry, color:'#ffffff', lineWidth:1, lineStyle:0, title:'エントリー'});
-    cs.createPriceLine({price:a.plan.sl, color:col.down, lineWidth:2, lineStyle:2, title:'逆指値(損切り)'});
-    cs.createPriceLine({price:a.plan.tp, color:col.up, lineWidth:2, lineStyle:2, title:'指値(利確)'});
+  if(overlayOn('plan') && a.plan.entry!=null){
+    const ref=a.plan.status!=='entry'? '(参考)':'';
+    cs.createPriceLine({price:a.plan.entry, color:'#ffffff', lineWidth:1, lineStyle:0, title:'エントリー'+ref});
+    cs.createPriceLine({price:a.plan.sl, color:col.down, lineWidth:2, lineStyle:2, title:'逆指値(損切り)'+ref});
+    cs.createPriceLine({price:a.plan.tp, color:col.up, lineWidth:2, lineStyle:2, title:'指値(利確)'+ref});
   }
   lwcChart.timeScale().fitContent();
 }
@@ -1828,7 +1842,7 @@ function renderCanvasChart(a,bars){
   const view=bars.slice(-120);
   const padL=10*devicePixelRatio, padR=72*devicePixelRatio, padT=12*devicePixelRatio, padB=26*devicePixelRatio;
   let lo=Math.min(...view.map(b=>b.l)), hi=Math.max(...view.map(b=>b.h));
-  if(a.plan.status==='entry'&&chartTf==='1hour'&&overlayOn('plan')){ lo=Math.min(lo,a.plan.sl); hi=Math.max(hi,a.plan.tp); }
+  if(a.plan.entry!=null&&chartTf==='1hour'&&overlayOn('plan')){ lo=Math.min(lo,a.plan.sl); hi=Math.max(hi,a.plan.tp); }
   const pad=(hi-lo)*0.05; lo-=pad; hi+=pad;
   const X=(i)=>padL+(W-padL-padR)*(i+0.5)/view.length;
   const Y=(p)=>padT+(H-padT-padB)*(1-(p-lo)/(hi-lo));
@@ -1864,15 +1878,16 @@ function renderCanvasChart(a,bars){
     g.fillRect(X(i)-bw/2, y1, bw, Math.max(devicePixelRatio,y2-y1));
   }
   // 売買プランの線
-  if(overlayOn('plan')&&a.plan.status==='entry'){
+  if(overlayOn('plan')&&a.plan.entry!=null){
+    const ref=a.plan.status!=='entry'? '(参考)':'';
     const line=(p,color,label)=>{
       g.strokeStyle=color; g.lineWidth=devicePixelRatio; g.setLineDash([6*devicePixelRatio,4*devicePixelRatio]);
       g.beginPath(); g.moveTo(padL,Y(p)); g.lineTo(W-padR,Y(p)); g.stroke(); g.setLineDash([]);
       g.fillStyle=color; g.fillText(label, padL+4*devicePixelRatio, Y(p)-4*devicePixelRatio);
     };
-    line(a.plan.entry,'#ffffff','エントリー');
-    line(a.plan.sl,col.down,'逆指値(損切り)');
-    line(a.plan.tp,col.up,'指値(利確)');
+    line(a.plan.entry,'#ffffff','エントリー'+ref);
+    line(a.plan.sl,col.down,'逆指値(損切り)'+ref);
+    line(a.plan.tp,col.up,'指値(利確)'+ref);
   }
 }
 
