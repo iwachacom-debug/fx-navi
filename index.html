@@ -205,6 +205,18 @@ body.color-intl .badge.s{background:rgba(239,68,68,.15);}
 .gloss-item dt{font-weight:700; font-size:14px;}
 .gloss-item dd{font-size:13px; color:var(--fg2); margin-top:2px;}
 
+/* ステルスモード(常にライト・お役所風の見た目で固定) */
+#stealth{position:fixed; inset:0; z-index:200; background:#ffffff; color:#212529; overflow-y:auto;
+  font-family:"Hiragino Kaku Gothic ProN","BIZ UDPGothic",Meiryo,sans-serif; font-size:15px; line-height:1.9;}
+#stealth .st-wrap{max-width:760px; margin:0 auto; padding:18px 20px 60px;}
+#stealth .st-head{display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1a5276; padding-bottom:8px; font-size:13px; color:#555;}
+#stealth .st-head a{color:#1a5276; text-decoration:underline; font-size:12px;}
+#stealth h1{font-size:22px; color:#1a5276; margin:18px 0 12px; font-weight:700;}
+#stealth h2{font-size:16px; color:#1a5276; border-left:5px solid #1a5276; padding-left:8px; margin:22px 0 8px;}
+#stealth p,#stealth ul{margin-bottom:10px; color:#212529;}
+#stealth ul{padding-left:22px;}
+#stealth .st-note{margin-top:36px; font-size:11px; color:#adb5bd; cursor:default; user-select:none;}
+
 /* セルフテスト */
 #testResults{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px;}
 #testResults .pass{color:var(--ok);} #testResults .fail{color:var(--err); font-weight:700;}
@@ -223,6 +235,7 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
     <h1>📈 FXナビ</h1>
     <span id="sessionBadge">—</span>
     <div class="header-btns">
+      <button class="icon-btn" id="stealthBtn" title="とっさに隠す(Escキーでも切替)">📄</button>
       <button class="icon-btn" id="themeBtn" title="ダーク/ライト切替">🌙</button>
       <button class="icon-btn" id="glossBtn">📖 用語集</button>
       <button class="icon-btn" id="settingsBtn">⚙ 設定</button>
@@ -353,6 +366,31 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
     <button class="close-x" data-close="glossModal">✕</button>
     <h3>📖 用語集</h3>
     <dl id="glossList"></dl>
+  </div>
+</div>
+
+<!-- ステルスモード: 国民健康保険の案内ページに擬態(Escキーで切替) -->
+<div id="stealth" class="hidden">
+  <div class="st-wrap">
+    <div class="st-head">
+      <span class="st-org">保険年金課 国民健康保険係</span>
+      <a href="javascript:void(0)" id="stealthExit">印刷用表示</a>
+    </div>
+    <h1>国民健康保険の各種手続きについて</h1>
+    <p>国民健康保険(国保)は、職場の健康保険に加入していない方などを対象とした医療保険制度です。加入・脱退・保険料・給付に関する主な手続きをご案内します。手続きの際は、本人確認書類とマイナンバーのわかるものをお持ちください。</p>
+    <h2>加入・脱退の手続き</h2>
+    <p>退職などで職場の健康保険をやめたとき、他の市区町村から転入したときは、異動日から<strong>14日以内</strong>に加入の届出が必要です。就職して職場の健康保険に加入したときは、国保をやめる手続きをお願いします。手続きが遅れると、保険料をさかのぼって納めていただく場合があります。</p>
+    <h2>保険料について</h2>
+    <p>保険料は、前年の所得に基づく「所得割」と、加入者数に応じた「均等割」などを合算して世帯単位で計算されます。納付が困難な場合は、分割納付や減免制度のご相談を受け付けていますので、お早めに窓口までお問い合わせください。</p>
+    <h2>高額療養費制度</h2>
+    <p>1か月の医療費の自己負担額が上限額を超えた場合、申請により超えた分が支給されます。あらかじめ「限度額適用認定証」の交付を受けると、窓口での支払いを上限額までにとどめることができます。</p>
+    <h2>よくあるお問い合わせ</h2>
+    <ul>
+      <li>保険証(資格確認書)を紛失した → 再交付の申請ができます</li>
+      <li>営業時間 → 平日 8:30〜17:15(土日祝・年末年始を除く)</li>
+      <li>郵送による手続き → 一部の届出は郵送でも受け付けています</li>
+    </ul>
+    <p class="st-note" id="stealthCode">文書管理番号: —</p>
   </div>
 </div>
 
@@ -1066,15 +1104,19 @@ function buildPlan(opt){
     return {status:'skip', reasons:['データが不足しているため売買プランを計算できません'], dir:null};
   }
   const dir = compScore>0? 'buy':'sell';
+  const cautions=[];
 
-  // 確信度フィルタ
-  if(Math.abs(compScore)<40)
-    reasons.push('シグナルがそこまで強くありません(「強い買い/強い売り」未満)。チャンスは何度でも来ます');
-  // 上位足一致フィルタ
+  // 確信度フィルタ(緩和済み: 判定が「買い」「売り」以上=|スコア|15以上ならエントリー可)
+  if(Math.abs(compScore)<15)
+    reasons.push('判定が中立(スコア±15未満)のため見送ります。チャンスは何度でも来ます');
+  // 上位足一致フィルタ(緩和済み: 2本以上の逆行で見送り。1本だけなら注意表示にとどめる)
   const upper=['4hour','8hour','1day'];
+  const upperNames={['4hour']:'4時間足',['8hour']:'8時間足',['1day']:'日足'};
   const against = upper.filter(tf=> tfScores[tf]!=null && (dir==='buy'? tfScores[tf]<-15 : tfScores[tf]>15));
-  if(against.length)
-    reasons.push('長い時間足(' + against.map(t=>({['4hour']:'4時間足',['8hour']:'8時間足',['1day']:'日足'})[t]).join('・') + ')が逆方向です。逆張りは勝率が下がるので見送ります');
+  if(against.length>=2)
+    reasons.push('長い時間足(' + against.map(t=>upperNames[t]).join('・') + ')の複数が逆方向です。逆張りは勝率が下がるので見送ります');
+  else if(against.length===1)
+    cautions.push(`長い時間足(${upperNames[against[0]]})が逆方向です。逆張り気味のエントリーになるため、深追いせず早めの利確を意識してください`);
   // 高ボラ警戒
   const last3=candles1h.slice(-3);
   if(last3.some(c=> c.h-c.l > 3*atr))
@@ -1091,11 +1133,14 @@ function buildPlan(opt){
   const support=supLevels.length? supLevels[supLevels.length-1] : null;
   const resistance=resLevels.length? resLevels[0] : null;
 
+  // 逆指値: 節目(サポレジ)が近い(2×ATR以内)ならその少し外側、遠ければATR基準。
+  // 以前は「節目の外側」を無条件に使っていたため、節目が遠いと損切り幅が異常に
+  // 広がり、利確目標(損切り幅×1.5)が非現実的に遠くなる欠陥があった
   let entry, entryAlt=null, sl, tp1, tp2, tpNote='';
   if(dir==='buy'){
     entry=price;
     if(support!=null && price-support>=1*atr) entryAlt=support+0.3*atr; // 押し目買い指値の提案
-    sl= support!=null? Math.min(support-0.5*atr, entry-1.5*atr) : entry-1.5*atr;
+    sl= (support!=null && entry-support<=2*atr)? support-0.3*atr : entry-1.5*atr;
     const risk=entry-sl;
     tp1=entry+1.5*risk;
     tp2= resistance!=null? resistance-0.2*atr : null;
@@ -1103,7 +1148,7 @@ function buildPlan(opt){
   } else {
     entry=price;
     if(resistance!=null && resistance-price>=1*atr) entryAlt=resistance-0.3*atr; // 戻り売り指値の提案
-    sl= resistance!=null? Math.max(resistance+0.5*atr, entry+1.5*atr) : entry+1.5*atr;
+    sl= (resistance!=null && resistance-entry<=2*atr)? resistance+0.3*atr : entry+1.5*atr;
     const risk=sl-entry;
     tp1=entry-1.5*risk;
     tp2= support!=null? support+0.2*atr : null;
@@ -1123,8 +1168,8 @@ function buildPlan(opt){
   if(rr<1.2)
     reasons.unshift(`リスクリワード比が${rr.toFixed(2)}しかありません。勝ったときの利益より負けたときの損の方が大きい位置なので、今回は見送りです`);
 
-  if(reasons.length) return {status:'skip', reasons, dir, entry, entryAlt, sl, tp, tpOther, tpNote, rr, support, resistance};
-  return {status:'entry', dir, entry, entryAlt, sl, tp, tpOther, tpNote, rr, support, resistance, reasons:[]};
+  if(reasons.length) return {status:'skip', reasons, cautions, dir, entry, entryAlt, sl, tp, tpOther, tpNote, rr, support, resistance};
+  return {status:'entry', dir, entry, entryAlt, sl, tp, tpOther, tpNote, rr, support, resistance, reasons:[], cautions};
 }
 
 /* ================= CORE END ================= */
@@ -1597,8 +1642,12 @@ function currentPair(){ return PAIRS[$('pairSelect').selectedIndex]||PAIRS[0]; }
 
 // 1通貨ペア分の分析を実行して結果オブジェクトを返す(描画はしない)
 async function computeAnalysis(pair, onStatus, opts={}){
-  const fmtP=fmtPriceFactory(pair);
   const data=await fetchAll(pair, onStatus, opts);
+  return processData(pair, data);
+}
+// 取得済みデータから判定を計算する(取得経路に依存しない共通処理)
+function processData(pair, data){
+  const fmtP=fmtPriceFactory(pair);
   const now=Date.now();
   // 確定足のみで判定(§4)。進行中の足は落とす
   const conf={};
@@ -1652,30 +1701,68 @@ async function analyze(){
     setButtonsBusy(false);
   }
 }
-// 全通貨一括判定モード
+// 全通貨をまとめて1リクエストで取得する(Twelve Dataのバッチ機能)
+async function tdBatch(interval, size, key, onStatus){
+  const syms=PAIRS.map(p=>p.td).join(',');
+  const url=`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(syms)}&interval=${interval}&outputsize=${size}&timezone=UTC&apikey=${encodeURIComponent(key)}`;
+  for(let attempt=0; attempt<10; attempt++){
+    const r=await cachedJson(url, 55e3, true);
+    const limited = r.code===429 || /api credits|run out/i.test(r.message||'');
+    if(!limited){
+      const out={};
+      for(const p of PAIRS){
+        const e=r[p.td];
+        if(e && e.status==='ok' && Array.isArray(e.values)){
+          out[p.td]=e.values.map(v=>({
+            t:Date.parse(v.datetime.replace(' ','T')+'Z'),
+            o:+v.open, h:+v.high, l:+v.low, c:+v.close
+          })).sort((a,b)=>a.t-b.t);
+        }
+      }
+      if(Object.keys(out).length) return out;
+      throw new Error(r.message||'一括取得に失敗しました');
+    }
+    fetchCache.delete(url);
+    if(onStatus) onStatus(`無料枠の分速制限のためデータ枠の回復を待っています…(${attempt+1}/10)`);
+    await sleep(10000);
+  }
+  throw new Error('無料枠の制限が解除されませんでした。1分ほど待って再実行してください');
+}
+// 全通貨一括判定モード: 3回のバッチ取得で7ペア×7時間足(1分足・5分足は省略)を判定
 async function scanAll(){
   if($('scanBtn').disabled) return;
   setButtonsBusy(true, '一括判定中…');
-  const results=[];
   try{
     clearCurrentCache();
     await fetchCalendar().catch(()=>{});
-    let anyDemo=false;
-    for(let i=0;i<PAIRS.length;i++){
-      const p=PAIRS[i];
-      setStatus(`🌐 全通貨一括判定中 ${i+1}/${PAIRS.length}: ${p.label} …(初回は少し時間がかかります)`);
+    const key=tdKey();
+    setStatus('🌐 一括判定 1/3: 15分足を全通貨まとめて取得中…');
+    const b15=await tdBatch('15min', 850, key, m=>setStatus('🌐 一括判定 1/3: '+m));
+    setStatus('🌐 一括判定 2/3: 4時間足を全通貨まとめて取得中…');
+    const b4h=await tdBatch('4h', 410, key, m=>setStatus('🌐 一括判定 2/3: '+m));
+    setStatus('🌐 一括判定 3/3: 日足を全通貨まとめて取得中…');
+    const b1d=await tdBatch('1day', 850, key, m=>setStatus('🌐 一括判定 3/3: '+m));
+    const results=[];
+    for(const p of PAIRS){
       try{
-        const a=await computeAnalysis(p, ()=>{}, {noDemo:true});
-        anyDemo=anyDemo||!!a.data.demo;
-        results.push(a);
+        const m15=b15[p.td], h4=b4h[p.td], d1=b1d[p.td];
+        if(!m15||!h4||!d1||m15.length<MIN_BARS) throw new Error('データ不足');
+        const candles={
+          '15min': m15.slice(-202),
+          '30min': aggregateBars(m15, 1800e3).slice(-202),
+          '1hour': aggregateBars(m15, 3600e3).slice(-202),
+          '4hour': h4.slice(-202),
+          '8hour': aggregateBars(h4, 28800e3).slice(-202),
+          '1day':  d1.slice(-202),
+          '1week': aggregateBars(d1, 7*86400e3).slice(-122),
+        };
+        results.push(processData(p, {source:'Twelve Data(一括)', candles, price:last(m15).c}));
       }catch(e){
         results.push({pair:p, error:e.message});
       }
-      if(i<PAIRS.length-1) await sleep(250); // 中継サービスへの負荷を分散
     }
     renderScan(results);
-    $('demoBanner').classList.toggle('hidden', !anyDemo);
-    setStatus(`一括判定完了 ${jstFull(Date.now())}(JST) | シグナルが強い順に表示しています`);
+    setStatus(`一括判定完了 ${jstFull(Date.now())}(JST) | 簡易版(1分足・5分足を除く7時間足)で計算 | シグナルが強い順`);
   }catch(e){
     setStatus(`エラー: ${e.message}`, true);
   }finally{
@@ -1838,7 +1925,8 @@ function renderPlan(a){
       <p class="muted plan-note">エントリーしないのも立派な戦略です。条件が揃ったタイミングでまた分析してください。</p>
     </div>${refBlock}<div id="planHelpBox" class="muted plan-note hidden"></div>`;
   } else {
-    el.innerHTML=planTableHtml(p, f)+'<div id="planHelpBox" class="muted plan-note hidden"></div>';
+    const cautions=(p.cautions||[]).map(c=>`<div class="warn-item">⚠️ ${c}</div>`).join('');
+    el.innerHTML=planTableHtml(p, f)+cautions+'<div id="planHelpBox" class="muted plan-note hidden"></div>';
   }
   el.querySelectorAll('.help-q').forEach(q=>{
     q.addEventListener('click',()=>{
@@ -2080,6 +2168,30 @@ function renderCanvasChart(a,bars){
   }
 }
 
+/* ---------------- ステルスモード(§8.6) ---------------- */
+let stealthOn=false;
+const APP_TITLE=document.title;
+const favLink=document.querySelector('link[rel="icon"]');
+const FAV_APP=favLink.getAttribute('href');
+const FAV_DOC='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📄</text></svg>');
+// 判定を「文書管理番号」に偽装する: 現在値の数字-方向コード / 関連様式=逆指値・指値
+function stealthCode(){
+  const a=lastAnalysis;
+  if(!a) return '文書管理番号: 2026-000000-N0';
+  const digits=(v)=>a.fmtP(v).replace(/[^0-9]/g,'').slice(0,6);
+  const cls= a.comp>=40?'B2': a.comp>=15?'B1': a.comp<=-40?'S2': a.comp<=-15?'S1':'N0';
+  let forms='';
+  if(a.plan && a.plan.entry!=null) forms=`(関連様式: 第${digits(a.plan.sl)}号・第${digits(a.plan.tp)}号)`;
+  return `文書管理番号: 2026-${digits(a.price)}-${cls}${forms}`;
+}
+function setStealth(on){
+  stealthOn=on;
+  $('stealth').classList.toggle('hidden', !on);
+  document.title= on? '国民健康保険の各種手続きについて' : APP_TITLE;
+  favLink.setAttribute('href', on? FAV_DOC : FAV_APP);
+  if(on) $('stealthCode').textContent=stealthCode();
+}
+
 /* ---------------- セッションバッジ・バナー ---------------- */
 function renderSession(){
   const s=sessionInfo();
@@ -2136,6 +2248,10 @@ function init(){
   $('pairSelect').innerHTML=PAIRS.map(p=>`<option>${p.label}</option>`).join('');
   $('analyzeBtn').addEventListener('click', analyze);
   $('scanBtn').addEventListener('click', scanAll);
+  $('stealthBtn').addEventListener('click', ()=>setStealth(true));
+  $('stealthExit').addEventListener('click', ()=>setStealth(false));
+  $('stealthCode').addEventListener('dblclick', ()=>setStealth(false));
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') setStealth(!stealthOn); });
   document.querySelectorAll('#overlayToggles input').forEach(cb=>cb.addEventListener('change', renderChart));
   initModals();
   renderSession();
