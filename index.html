@@ -329,8 +329,8 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
   <div class="modal">
     <button class="close-x" data-close="settingsModal">✕</button>
     <h3>⚙ 設定</h3>
-    <label>Twelve Data APIキー(任意・GMOコインAPIが使えないときの予備)</label>
-    <input type="password" id="setTdKey" placeholder="無料キーを twelvedata.com で取得できます">
+    <label>Twelve Data APIキー(空欄なら内蔵の共有キーを使用)</label>
+    <input type="password" id="setTdKey" placeholder="内蔵キー使用中。自分のキーに差し替え可">
     <label>画面テーマ</label>
     <select id="setTheme">
       <option value="dark">ダークモード</option>
@@ -1209,7 +1209,11 @@ const TF_DEFS={
 const TF_KEYS=Object.keys(TF_DEFS);
 const MIN_BARS=60; // これ未満の時間足は「データ不足」
 
+// 内蔵のTwelve Data APIキー(無料枠・所有者の指示により埋め込み)。
+// 設定画面で自分のキーを入れた場合はそちらを優先する
+const DEFAULT_TD_KEY='cde59344b98645218ff35a15007b3208';
 const settings={ tdKey:'', colorMode:'jp', theme:'dark' };
+function tdKey(){ return settings.tdKey.trim() || DEFAULT_TD_KEY; }
 function applyTheme(){
   document.body.classList.toggle('color-intl', settings.colorMode==='intl');
   document.body.classList.toggle('theme-light', settings.theme==='light');
@@ -1370,27 +1374,40 @@ async function tdSeries(pair, interval, size, key, onStatus){
   }
   throw new Error('Twelve Dataの分速制限が解除されませんでした');
 }
-function merge4hTo8h(bars4h){
+// 細かい足から粗い足を合成する(リクエスト数の節約。無料枠1分8req対策)
+function aggregateBars(bars, targetMs){
   const out=[];
-  const start=bars4h.length%2;
-  for(let i=start;i+1<bars4h.length;i+=2){
-    const a=bars4h[i], b=bars4h[i+1];
-    out.push({t:a.t, o:a.o, h:Math.max(a.h,b.h), l:Math.min(a.l,b.l), c:b.c});
+  let cur=null, bucket=null;
+  for(const b of bars){
+    const bk=Math.floor(b.t/targetMs)*targetMs;
+    if(bucket!==bk){
+      if(cur) out.push(cur);
+      bucket=bk;
+      cur={t:bk, o:b.o, h:b.h, l:b.l, c:b.c};
+    } else {
+      cur.h=Math.max(cur.h,b.h); cur.l=Math.min(cur.l,b.l); cur.c=b.c;
+    }
   }
+  if(cur) out.push(cur);
   return out;
 }
 async function fetchAllTd(pair, onStatus){
-  const key=settings.tdKey.trim();
-  if(!key) throw new Error('no td key');
-  onStatus('Twelve Data APIから取得中…(無料枠のため少し時間がかかります)');
+  const key=tdKey();
+  onStatus('Twelve Data APIから取得中…');
+  // 5リクエストで9時間足を構成する(5分足は1分足から、30分/1時間足は15分足から、8時間足は4時間足から合成)
   const out={};
-  for(const k of TF_KEYS){
-    const def=TF_DEFS[k];
-    if(k==='8hour') continue;
-    out[k]=await tdSeries(pair, def.td, k==='4hour'?410:def.need+2, key, onStatus);
-  }
-  out['8hour']=merge4hTo8h(out['4hour']);
-  out['4hour']=out['4hour'].slice(-(TF_DEFS['4hour'].need+2));
+  const m1=await tdSeries(pair,'1min',1050,key,onStatus);
+  out['1min']=m1.slice(-202);
+  out['5min']=aggregateBars(m1,300e3).slice(-202);
+  const m15=await tdSeries(pair,'15min',850,key,onStatus);
+  out['15min']=m15.slice(-202);
+  out['30min']=aggregateBars(m15,1800e3).slice(-202);
+  out['1hour']=aggregateBars(m15,3600e3).slice(-202);
+  const h4=await tdSeries(pair,'4h',410,key,onStatus);
+  out['4hour']=h4.slice(-202);
+  out['8hour']=aggregateBars(h4,28800e3).slice(-202);
+  out['1day']=await tdSeries(pair,'1day',202,key,onStatus);
+  out['1week']=await tdSeries(pair,'1week',122,key,onStatus);
   const price=last(out['1min'])? last(out['1min']).c : null;
   return {source:'Twelve Data', candles:out, price};
 }
@@ -1425,14 +1442,13 @@ function demoCandles(pair){
 
 let demoAccepted=false; // 同一セッションで何度も確認ダイアログを出さないための記憶
 async function fetchAll(pair, onStatus, opts={}){
-  let gmoErr=null, tdErr=null;
-  try{ return await fetchAllGmo(pair, onStatus); }catch(e){ gmoErr=e; }
+  // Twelve Dataを優先し、失敗時のみGMOコイン(CORS中継)を予備として使う
+  let tdErr=null, gmoErr=null;
   try{ return await fetchAllTd(pair, onStatus); }catch(e){ tdErr=e; }
+  try{ return await fetchAllGmo(pair, onStatus); }catch(e){ gmoErr=e; }
   // 一括判定では実データとデモが混ざると危険なため、デモに落とさず失敗として扱う
   if(opts.noDemo) throw new Error('データ取得に失敗(アクセス集中の可能性。少し待って再実行してください)');
-  const msg = settings.tdKey.trim()
-    ? '為替データAPI(GMOコイン / Twelve Data)に接続できませんでした。'
-    : '為替データAPI(GMOコイン)に接続できませんでした。設定画面でTwelve DataのAPIキーを登録すると予備の取得先を使えます。';
+  const msg='為替データAPI(Twelve Data / GMOコイン)に接続できませんでした。';
   if(demoAccepted || confirm(msg+'\n\nデモデータ(架空の値動き)で画面の動きを確認しますか?')){
     demoAccepted=true;
     return demoCandles(pair);

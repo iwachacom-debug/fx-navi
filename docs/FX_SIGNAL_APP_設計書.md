@@ -85,9 +85,9 @@
 
 | 優先 | ソース | 内容 | キー | 備考 |
 |---|---|---|---|---|
-| 1 | **GMOコイン 外国為替FX Public API**<br>`https://forex-api.coin.z.com/public/v1/klines` | 1分〜月足のOHLC、主要クロス円・ドルストレート | 不要 | 日本のFX価格に近い。`?symbol=USD_JPY&priceType=BID&interval=1hour&date=YYYYMMDD`(日足以上は `date=YYYY`)。現在値は `/public/v1/ticker` |
-| 2 | **Twelve Data**(無料枠: 8req/分, 800req/日) | FXのOHLC全時間足 | 必要(無料) | 設定画面でユーザーがAPIキーを入力し `localStorage` に保存 |
-| 3 | デモモード | 内蔵のサンプルOHLCデータ | 不要 | API不通時・開発時の動作確認用。画面に「デモデータ」と明示すること |
+| 1 | **Twelve Data**(無料枠: 8req/分, 800req/日) | FXのOHLC | 内蔵キー(所有者の指示により埋め込み)。設定画面で自分のキーに差し替え可 | CORS対応の直通経路。1回の分析を5リクエストに抑えるため、5分足は1分足から・30分/1時間足は15分足から・8時間足は4時間足から合成する。分速制限到達時は自動で待機・リトライ |
+| 2 | **GMOコイン 外国為替FX Public API**<br>`https://forex-api.coin.z.com/public/v1/klines` | 1分〜月足のOHLC | 不要 | 予備。ブラウザ直接アクセスはCORSで拒否されるためCORS中継サービス経由(中継キャッシュ対策のユニークパラメータ付き) |
+| 3 | デモモード | 内蔵のサンプルOHLCデータ | 不要 | API不通時・開発時の動作確認用。画面に「デモデータ」と明示。一括判定ではデモに落とさず失敗表示 |
 
 **経済指標カレンダー(§7.4 で使用):**
 
