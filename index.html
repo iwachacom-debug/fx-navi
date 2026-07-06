@@ -215,7 +215,11 @@ body.color-intl .badge.s{background:rgba(239,68,68,.15);}
 #stealth h2{font-size:16px; color:#1a5276; border-left:5px solid #1a5276; padding-left:8px; margin:22px 0 8px;}
 #stealth p,#stealth ul{margin-bottom:10px; color:#212529;}
 #stealth ul{padding-left:22px;}
-#stealth .st-note{margin-top:36px; font-size:11px; color:#adb5bd; cursor:default; user-select:none;}
+#stealth .st-tools{margin-top:30px; padding-top:12px; border-top:1px solid #dee2e6; display:flex; gap:14px; align-items:center; font-size:13px; color:#555;}
+#stealth .st-tools select,#stealth .st-tools button{
+  font-size:13px; padding:4px 10px; border:1px solid #adb5bd; border-radius:3px; background:#f8f9fa; color:#212529; cursor:pointer;
+}
+#stealth .st-note{margin-top:14px; font-size:11px; color:#adb5bd; cursor:default; user-select:none;}
 
 /* セルフテスト */
 #testResults{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px;}
@@ -390,6 +394,10 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
       <li>営業時間 → 平日 8:30〜17:15(土日祝・年末年始を除く)</li>
       <li>郵送による手続き → 一部の届出は郵送でも受け付けています</li>
     </ul>
+    <div class="st-tools">
+      <label>窓口区分: <select id="stealthPair"></select></label>
+      <button id="stealthRefresh" type="button">最新の情報に更新</button>
+    </div>
     <p class="st-note" id="stealthCode">文書管理番号: —</p>
   </div>
 </div>
@@ -1605,6 +1613,7 @@ const GLOSSARY=[
   ['サポート/レジスタンス','過去に何度も反発した価格帯。サポート(下値支持)では買い、レジスタンス(上値抵抗)では売りが出やすくなります'],
   ['ローソク足パターン','ローソク足の形から売り買いの攻防を読む方法。包み足・ピンバー・明けの明星などがあります'],
   ['トレンド相場 / レンジ相場','一方向に動き続けるのがトレンド相場、一定の幅で往復するのがレンジ相場。有効な指標が異なるため、本アプリはADXで自動判別しています'],
+  ['ステルスモードの読み方(📄ボタン/Escキー)','擬態ページ最下部の「文書管理番号: 2026-155352-B32(関連様式: 第155235号・第155528号)」は、現在値155.352・買い方向・強さ32(0〜100、40以上が「強い」)・逆指値155.235・指値155.528 という意味です。「窓口区分」は通貨ペア: UJ=米ドル/円、EJ=ユーロ/円、GJ=ポンド/円、AJ=豪ドル/円、EU=ユーロ/米ドル、GU=ポンド/米ドル、AU=豪ドル/米ドル。「最新の情報に更新」ボタンで擬態したまま再分析できます'],
 ];
 const IND_DETAILS={
   smaCross:'5本・25本・75本の移動平均線の並びとクロスを見ています。短期線が中期線を上抜く「ゴールデンクロス」は上昇の始まり、下抜く「デッドクロス」は下落の始まりのサインです。長期線(75)との位置関係で大きな流れも確認しています。',
@@ -1681,13 +1690,13 @@ function setButtonsBusy(busy, label){
   btn.disabled=busy; sbtn.disabled=busy;
   btn.innerHTML= busy? `<span class="spin"></span>${label||'分析中…'}` : '🔍 今すぐ分析';
 }
-async function analyze(){
+async function analyze(opts={}){
   if($('analyzeBtn').disabled) return;
   setButtonsBusy(true);
   try{
     clearCurrentCache(); // 押した瞬間の最新値を取り直す
     const calP=fetchCalendar();
-    const a=await computeAnalysis(currentPair(), m=>setStatus(m));
+    const a=await computeAnalysis(currentPair(), m=>setStatus(m), opts);
     await calP;
     lastAnalysis=a;
     renderAll();
@@ -2174,22 +2183,38 @@ const APP_TITLE=document.title;
 const favLink=document.querySelector('link[rel="icon"]');
 const FAV_APP=favLink.getAttribute('href');
 const FAV_DOC='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📄</text></svg>');
-// 判定を「文書管理番号」に偽装する: 現在値の数字-方向コード / 関連様式=逆指値・指値
+// 判定を「文書管理番号」に偽装する:
+//   2026-{現在値の数字6桁}-{B=買い/S=売り/N=中立}{強さ0〜100}(関連様式: 第{逆指値}号・第{指値}号)
 function stealthCode(){
   const a=lastAnalysis;
   if(!a) return '文書管理番号: 2026-000000-N0';
   const digits=(v)=>a.fmtP(v).replace(/[^0-9]/g,'').slice(0,6);
-  const cls= a.comp>=40?'B2': a.comp>=15?'B1': a.comp<=-40?'S2': a.comp<=-15?'S1':'N0';
+  const strength=Math.abs(Math.round(a.comp??0));
+  const letter= a.comp>=15?'B': a.comp<=-15?'S':'N';
   let forms='';
   if(a.plan && a.plan.entry!=null) forms=`(関連様式: 第${digits(a.plan.sl)}号・第${digits(a.plan.tp)}号)`;
-  return `文書管理番号: 2026-${digits(a.price)}-${cls}${forms}`;
+  return `文書管理番号: 2026-${digits(a.price)}-${letter}${strength}${forms}`;
 }
+// 通貨ペアを「窓口区分」コードに偽装(UJ=USD/JPY, EJ=EUR/JPY, …)
+const STEALTH_PAIR_CODES=['UJ','EJ','GJ','AJ','EU','GU','AU'];
 function setStealth(on){
   stealthOn=on;
   $('stealth').classList.toggle('hidden', !on);
   document.title= on? '国民健康保険の各種手続きについて' : APP_TITLE;
   favLink.setAttribute('href', on? FAV_DOC : FAV_APP);
-  if(on) $('stealthCode').textContent=stealthCode();
+  if(on){
+    $('stealthPair').selectedIndex=$('pairSelect').selectedIndex;
+    $('stealthCode').textContent=stealthCode();
+  }
+}
+async function stealthRefresh(){
+  if($('analyzeBtn').disabled) return;
+  $('stealthCode').textContent='文書管理番号: 照会中…';
+  const before=lastAnalysis? lastAnalysis.at : 0;
+  await analyze({noDemo:true}); // ステルス中はデモ確認ダイアログを出さない
+  $('stealthCode').textContent = (lastAnalysis && lastAnalysis.at!==before)
+    ? stealthCode()
+    : '文書管理番号: 現在照会できません(時間をおいてお試しください)';
 }
 
 /* ---------------- セッションバッジ・バナー ---------------- */
@@ -2246,11 +2271,17 @@ function initModals(){
 function init(){
   loadSettings();
   $('pairSelect').innerHTML=PAIRS.map(p=>`<option>${p.label}</option>`).join('');
-  $('analyzeBtn').addEventListener('click', analyze);
+  $('analyzeBtn').addEventListener('click', ()=>analyze());
   $('scanBtn').addEventListener('click', scanAll);
   $('stealthBtn').addEventListener('click', ()=>setStealth(true));
   $('stealthExit').addEventListener('click', ()=>setStealth(false));
   $('stealthCode').addEventListener('dblclick', ()=>setStealth(false));
+  $('stealthPair').innerHTML=STEALTH_PAIR_CODES.map(c=>`<option>区分${c}</option>`).join('');
+  $('stealthPair').addEventListener('change', ()=>{
+    $('pairSelect').selectedIndex=$('stealthPair').selectedIndex;
+    stealthRefresh();
+  });
+  $('stealthRefresh').addEventListener('click', stealthRefresh);
   document.addEventListener('keydown', e=>{ if(e.key==='Escape') setStealth(!stealthOn); });
   document.querySelectorAll('#overlayToggles input').forEach(cb=>cb.addEventListener('change', renderChart));
   initModals();
