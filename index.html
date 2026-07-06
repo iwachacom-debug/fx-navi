@@ -1265,23 +1265,41 @@ const TRANSPORTS=[
 ];
 const hostTransport={}; // host → 成功したTRANSPORTSの添字
 function viaProxy(host){ return (hostTransport[host]||0)>0; }
+const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+// 同時リクエスト数を絞るセマフォ。一括判定などで大量のリクエストを一気に送ると
+// CORS中継サービスのレート制限に引っかかるため、常時4本までに制限する
+let inflight=0; const slotWaiters=[];
+async function withSlot(fn){
+  while(inflight>=4) await new Promise(r=>slotWaiters.push(r));
+  inflight++;
+  try{ return await fn(); }
+  finally{ inflight--; const w=slotWaiters.shift(); if(w) w(); }
+}
 async function corsJson(url, ttlMs, isCurrent=false){
   const hit=fetchCache.get(url);
   if(hit && (hit.ttl===0 || Date.now()-hit.at<hit.ttl)) return hit.data;
-  const host=new URL(url).host;
-  const order = hostTransport[host]!=null? [hostTransport[host]] : TRANSPORTS.map((_,i)=>i);
-  let lastErr=null;
-  for(const i of order){
-    try{
-      const res=await fetch(TRANSPORTS[i](url), {cache:'no-store'});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data=await res.json();
-      hostTransport[host]=i;
-      fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs, current:isCurrent});
-      return data;
-    }catch(e){ lastErr=e; }
-  }
-  throw lastErr||new Error('fetch failed');
+  return withSlot(async()=>{
+    // 待っている間に他のリクエストが取得済みの場合がある
+    const hit2=fetchCache.get(url);
+    if(hit2 && (hit2.ttl===0 || Date.now()-hit2.at<hit2.ttl)) return hit2.data;
+    const host=new URL(url).host;
+    let lastErr=null;
+    for(let attempt=0; attempt<3; attempt++){         // レート制限等の一時失敗はリトライ
+      const order = hostTransport[host]!=null? [hostTransport[host]] : TRANSPORTS.map((_,i)=>i);
+      for(const i of order){
+        try{
+          const res=await fetch(TRANSPORTS[i](url), {cache:'no-store'});
+          if(!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data=await res.json();
+          hostTransport[host]=i;
+          fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs, current:isCurrent});
+          return data;
+        }catch(e){ lastErr=e; }
+      }
+      if(attempt<2) await sleep(700*(attempt+1));
+    }
+    throw lastErr||new Error('fetch failed');
+  });
 }
 const GMO='https://forex-api.coin.z.com/public/v1';
 const GMO_HOST='forex-api.coin.z.com';
@@ -1395,11 +1413,13 @@ function demoCandles(pair){
   return {source:'デモデータ(架空)', candles:out, price:last(out['1min']).c, demo:true};
 }
 
-let demoAccepted=false; // 一括判定中に何度も確認ダイアログを出さないための記憶
-async function fetchAll(pair, onStatus){
+let demoAccepted=false; // 同一セッションで何度も確認ダイアログを出さないための記憶
+async function fetchAll(pair, onStatus, opts={}){
   let gmoErr=null, tdErr=null;
   try{ return await fetchAllGmo(pair, onStatus); }catch(e){ gmoErr=e; }
   try{ return await fetchAllTd(pair, onStatus); }catch(e){ tdErr=e; }
+  // 一括判定では実データとデモが混ざると危険なため、デモに落とさず失敗として扱う
+  if(opts.noDemo) throw new Error('データ取得に失敗(アクセス集中の可能性。少し待って再実行してください)');
   const msg = settings.tdKey.trim()
     ? '為替データAPI(GMOコイン / Twelve Data)に接続できませんでした。'
     : '為替データAPI(GMOコイン)に接続できませんでした。設定画面でTwelve DataのAPIキーを登録すると予備の取得先を使えます。';
@@ -1550,9 +1570,9 @@ function setStatus(msg, isError=false){
 function currentPair(){ return PAIRS[$('pairSelect').selectedIndex]||PAIRS[0]; }
 
 // 1通貨ペア分の分析を実行して結果オブジェクトを返す(描画はしない)
-async function computeAnalysis(pair, onStatus){
+async function computeAnalysis(pair, onStatus, opts={}){
   const fmtP=fmtPriceFactory(pair);
-  const data=await fetchAll(pair, onStatus);
+  const data=await fetchAll(pair, onStatus, opts);
   const now=Date.now();
   // 確定足のみで判定(§4)。進行中の足は落とす
   const conf={};
@@ -1619,12 +1639,13 @@ async function scanAll(){
       const p=PAIRS[i];
       setStatus(`🌐 全通貨一括判定中 ${i+1}/${PAIRS.length}: ${p.label} …(初回は少し時間がかかります)`);
       try{
-        const a=await computeAnalysis(p, ()=>{});
+        const a=await computeAnalysis(p, ()=>{}, {noDemo:true});
         anyDemo=anyDemo||!!a.data.demo;
         results.push(a);
       }catch(e){
         results.push({pair:p, error:e.message});
       }
+      if(i<PAIRS.length-1) await sleep(250); // 中継サービスへの負荷を分散
     }
     renderScan(results);
     $('demoBanner').classList.toggle('hidden', !anyDemo);
