@@ -72,6 +72,18 @@ header{
 }
 #analyzeBtn:hover{filter:brightness(1.08);}
 #analyzeBtn:disabled{opacity:.55; cursor:wait; box-shadow:none;}
+#scanBtn{
+  background:var(--bg3); color:var(--fg); border:1px solid var(--line); border-radius:10px;
+  padding:12px 16px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap;
+}
+#scanBtn:hover{border-color:var(--accent);}
+#scanBtn:disabled{opacity:.55; cursor:wait;}
+#scanTable{width:100%; border-collapse:collapse; font-size:13.5px; min-width:560px;}
+#scanTable th,#scanTable td{padding:9px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top;}
+#scanTable th{color:var(--fg2); font-weight:600; font-size:12.5px;}
+#scanTable td.val{font-variant-numeric:tabular-nums; font-weight:700;}
+#scanTable tr.scan-row{cursor:pointer;}
+#scanTable tr.scan-row:hover{background:var(--bg3);}
 #statusLine{margin-top:8px; min-height:1.2em;}
 #statusLine.error{color:var(--err);}
 
@@ -228,10 +240,22 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
     <div id="controls">
       <select id="pairSelect"></select>
       <button id="analyzeBtn">🔍 今すぐ分析</button>
+      <button id="scanBtn" title="全通貨ペアをまとめて判定">🌐 全通貨一括判定</button>
     </div>
     <div id="statusLine" class="muted"></div>
     <div id="marketBanner" class="banner hidden"></div>
     <div id="demoBanner" class="banner demo hidden">⚠️ デモデータで表示中です。実際の相場とは無関係の架空データなので、取引の参考にしないでください。</div>
+  </section>
+
+  <section class="card hidden" id="scanSection">
+    <h2>🌐 全通貨 一括判定 <span class="small muted">(シグナルが強い順)</span></h2>
+    <div class="table-wrap">
+      <table id="scanTable">
+        <thead><tr><th>通貨ペア</th><th>判定</th><th>スコア</th><th>売買プラン</th></tr></thead>
+        <tbody id="scanTableBody"></tbody>
+      </table>
+    </div>
+    <p class="small" style="margin-top:8px">行をタップすると、その通貨ペアの詳細分析を実行します。</p>
   </section>
 
   <div id="results" class="hidden">
@@ -285,7 +309,7 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
           <tbody id="indTableBody"></tbody>
         </table>
       </div>
-      <p class="small" style="margin-top:8px">※メイン判定軸である1時間足の値を表示しています。判定は直近の確定足に基づきます。</p>
+      <p class="small" style="margin-top:8px" id="indTableNote"></p>
     </section>
 
   </div>
@@ -1235,8 +1259,9 @@ function clearCurrentCache(){
    CORS中継サービス経由で再試行する。ホストごとに成功した経路を記憶する */
 const TRANSPORTS=[
   u=>u, // 直接
-  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
-  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+  // 中継サービス側の応答キャッシュで古い値が返るのを防ぐため、毎回ユニークなパラメータを付ける
+  u=>'https://corsproxy.io/?url='+encodeURIComponent(u)+'&_cb='+Date.now(),
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)+'&_cb='+Date.now(),
 ];
 const hostTransport={}; // host → 成功したTRANSPORTSの添字
 function viaProxy(host){ return (hostTransport[host]||0)>0; }
@@ -1370,6 +1395,7 @@ function demoCandles(pair){
   return {source:'デモデータ(架空)', candles:out, price:last(out['1min']).c, demo:true};
 }
 
+let demoAccepted=false; // 一括判定中に何度も確認ダイアログを出さないための記憶
 async function fetchAll(pair, onStatus){
   let gmoErr=null, tdErr=null;
   try{ return await fetchAllGmo(pair, onStatus); }catch(e){ gmoErr=e; }
@@ -1377,7 +1403,8 @@ async function fetchAll(pair, onStatus){
   const msg = settings.tdKey.trim()
     ? '為替データAPI(GMOコイン / Twelve Data)に接続できませんでした。'
     : '為替データAPI(GMOコイン)に接続できませんでした。設定画面でTwelve DataのAPIキーを登録すると予備の取得先を使えます。';
-  if(confirm(msg+'\n\nデモデータ(架空の値動き)で画面の動きを確認しますか?')){
+  if(demoAccepted || confirm(msg+'\n\nデモデータ(架空の値動き)で画面の動きを確認しますか?')){
+    demoAccepted=true;
     return demoCandles(pair);
   }
   throw new Error(msg);
@@ -1522,60 +1549,122 @@ function setStatus(msg, isError=false){
 }
 function currentPair(){ return PAIRS[$('pairSelect').selectedIndex]||PAIRS[0]; }
 
+// 1通貨ペア分の分析を実行して結果オブジェクトを返す(描画はしない)
+async function computeAnalysis(pair, onStatus){
+  const fmtP=fmtPriceFactory(pair);
+  const data=await fetchAll(pair, onStatus);
+  const now=Date.now();
+  // 確定足のみで判定(§4)。進行中の足は落とす
+  const conf={};
+  for(const k of TF_KEYS){
+    const def=TF_DEFS[k], all=data.candles[k]||[];
+    conf[k]= all.length && last(all).t+def.ms>now ? all.slice(0,-1) : all.slice();
+  }
+  const price = data.price ?? (conf['1min'].length? last(conf['1min']).c : null);
+  if(price==null || conf['1hour'].length<MIN_BARS) throw new Error('十分なデータを取得できませんでした');
+
+  const regime=detectRegime(conf['1hour']);
+  const dailyPrev=conf['1day'].length? last(conf['1day']) : null;
+
+  const tfResults={}, tfScores={};
+  for(const k of TF_KEYS){
+    if(conf[k].length<MIN_BARS){ tfResults[k]=null; tfScores[k]=null; continue; }
+    const r=scoreTimeframe(conf[k], price, regime.mode, dailyPrev, fmtP);
+    tfResults[k]=r; tfScores[k]=r.score;
+  }
+  const comp=compositeScore(tfScores);
+  const verdict=verdictOf(comp);
+  const atr1h=tfResults['1hour']? tfResults['1hour'].atr : null;
+  const plan=buildPlan({
+    compScore:comp, tfScores, price, atr:atr1h, candles1h:conf['1hour'], fmtP,
+    newsBlock: data.demo? null : newsBlocking(pair, now),
+  });
+  return {pair, fmtP, data, conf, price, regime, tfResults, tfScores, comp, verdict, plan, at:now};
+}
+function setButtonsBusy(busy, label){
+  const btn=$('analyzeBtn'), sbtn=$('scanBtn');
+  btn.disabled=busy; sbtn.disabled=busy;
+  btn.innerHTML= busy? `<span class="spin"></span>${label||'分析中…'}` : '🔍 今すぐ分析';
+}
 async function analyze(){
-  const btn=$('analyzeBtn');
-  if(btn.disabled) return;
-  btn.disabled=true;
-  btn.innerHTML='<span class="spin"></span>分析中…';
+  if($('analyzeBtn').disabled) return;
+  setButtonsBusy(true);
   try{
-    const pair=currentPair();
-    const fmtP=fmtPriceFactory(pair);
     clearCurrentCache(); // 押した瞬間の最新値を取り直す
     const calP=fetchCalendar();
-    const data=await fetchAll(pair, m=>setStatus(m));
+    const a=await computeAnalysis(currentPair(), m=>setStatus(m));
     await calP;
-    setStatus('指標を計算中…');
-    await new Promise(r=>setTimeout(r,10)); // 描画を挟む
-
-    const now=Date.now();
-    // 確定足のみで判定(§4)。進行中の足は落とす
-    const conf={};
-    for(const k of TF_KEYS){
-      const def=TF_DEFS[k], all=data.candles[k]||[];
-      conf[k]= all.length && last(all).t+def.ms>now ? all.slice(0,-1) : all.slice();
-    }
-    const price = data.price ?? (conf['1min'].length? last(conf['1min']).c : null);
-    if(price==null || conf['1hour'].length<MIN_BARS) throw new Error('十分なデータを取得できませんでした');
-
-    const regime=detectRegime(conf['1hour']);
-    const dailyPrev=conf['1day'].length? last(conf['1day']) : null;
-
-    const tfResults={}, tfScores={};
-    for(const k of TF_KEYS){
-      if(conf[k].length<MIN_BARS){ tfResults[k]=null; tfScores[k]=null; continue; }
-      const r=scoreTimeframe(conf[k], price, regime.mode, dailyPrev, fmtP);
-      tfResults[k]=r; tfScores[k]=r.score;
-    }
-    const comp=compositeScore(tfScores);
-    const verdict=verdictOf(comp);
-    const atr1h=tfResults['1hour']? tfResults['1hour'].atr : null;
-    const plan=buildPlan({
-      compScore:comp, tfScores, price, atr:atr1h, candles1h:conf['1hour'], fmtP,
-      newsBlock: data.demo? null : newsBlocking(pair, now),
-    });
-
-    lastAnalysis={pair, fmtP, data, conf, price, regime, tfResults, tfScores, comp, verdict, plan, at:now};
+    lastAnalysis=a;
     renderAll();
-    const lastT=conf['1hour'].length? last(conf['1hour']).t+TF_DEFS['1hour'].ms : now;
-    setStatus(`分析完了 ${jstFull(now)}(JST) | データ: ${data.source} | 最新確定足: ${jstFull(lastT)}`);
-    $('footerSource').textContent=`データソース: ${data.source} / 最終取得: ${jstFull(now)}(JST)`;
-    $('demoBanner').classList.toggle('hidden', !data.demo);
+    const lastT=a.conf['1hour'].length? last(a.conf['1hour']).t+TF_DEFS['1hour'].ms : a.at;
+    setStatus(`分析完了 ${jstFull(a.at)}(JST) | データ: ${a.data.source} | 現在値: ${a.fmtP(a.price)} | 最新確定足: ${jstFull(lastT)}`);
+    $('footerSource').textContent=`データソース: ${a.data.source} / 最終取得: ${jstFull(a.at)}(JST)`;
+    $('demoBanner').classList.toggle('hidden', !a.data.demo);
   }catch(e){
     setStatus(`エラー: ${e.message}`, true);
   }finally{
-    btn.disabled=false;
-    btn.textContent='🔍 今すぐ分析';
+    setButtonsBusy(false);
   }
+}
+// 全通貨一括判定モード
+async function scanAll(){
+  if($('scanBtn').disabled) return;
+  setButtonsBusy(true, '一括判定中…');
+  const results=[];
+  try{
+    clearCurrentCache();
+    await fetchCalendar().catch(()=>{});
+    let anyDemo=false;
+    for(let i=0;i<PAIRS.length;i++){
+      const p=PAIRS[i];
+      setStatus(`🌐 全通貨一括判定中 ${i+1}/${PAIRS.length}: ${p.label} …(初回は少し時間がかかります)`);
+      try{
+        const a=await computeAnalysis(p, ()=>{});
+        anyDemo=anyDemo||!!a.data.demo;
+        results.push(a);
+      }catch(e){
+        results.push({pair:p, error:e.message});
+      }
+    }
+    renderScan(results);
+    $('demoBanner').classList.toggle('hidden', !anyDemo);
+    setStatus(`一括判定完了 ${jstFull(Date.now())}(JST) | シグナルが強い順に表示しています`);
+  }catch(e){
+    setStatus(`エラー: ${e.message}`, true);
+  }finally{
+    setButtonsBusy(false);
+  }
+}
+function renderScan(results){
+  const sec=$('scanSection');
+  sec.classList.remove('hidden');
+  const sorted=[...results].sort((a,b)=>Math.abs(b.comp??0)-Math.abs(a.comp??0));
+  const rows=sorted.map(a=>{
+    if(a.error) return `<tr><td>${a.pair.label}</td><td colspan="3" class="muted">エラー: ${a.error}</td></tr>`;
+    const v=tfVerdictShort(a.comp);
+    const strong=Math.abs(a.comp)>=40;
+    const badge=`<span class="badge ${v.cls}">${strong?'💪 ':''}${v.label}</span>`;
+    const f=a.fmtP, p=a.plan;
+    let planTxt='—';
+    if(p&&p.entry!=null){
+      const dir=p.dir==='buy'?'<span class="dir-buy">買い</span>':'<span class="dir-sell">売り</span>';
+      const nums=`エントリー ${f(p.entry)} / 逆指値 ${f(p.sl)} / 指値 ${f(p.tp)}`;
+      planTxt= p.status==='entry'? `${dir} ${nums}` : `<span class="muted">見送り(参考: ${p.dir==='buy'?'買い':'売り'} ${nums})</span>`;
+    }
+    return `<tr class="scan-row" data-pair="${a.pair.label}">
+      <td><b>${a.pair.label}</b><br><span class="small muted">${f(a.price)}</span></td>
+      <td>${badge}</td>
+      <td class="val">${a.comp>=0?'+':''}${a.comp.toFixed(0)}</td>
+      <td>${planTxt}</td></tr>`;
+  }).join('');
+  $('scanTableBody').innerHTML=rows;
+  sec.querySelectorAll('.scan-row').forEach(tr=>{
+    tr.addEventListener('click',()=>{
+      const idx=PAIRS.findIndex(p=>p.label===tr.dataset.pair);
+      if(idx>=0){ $('pairSelect').selectedIndex=idx; analyze(); }
+    });
+  });
+  sec.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 /* ---------------- 判定理由・注意文(§6.3) ---------------- */
@@ -1755,7 +1844,10 @@ function renderTfSummary(a){
   }).join('');
 }
 function renderIndTable(a){
-  const r=a.tfResults['1hour'];
+  // チャートで選択中の時間足の指標を表示する(タブと連動)
+  const tf=a.tfResults[chartTf]!=null? chartTf : '1hour';
+  $('indTableNote').textContent=`※チャートで選択中の時間足(${TF_DEFS[tf].label})の指標値と判定を表示しています。チャート上の時間足タブで切り替えられます。判定は直近の確定足に基づきます。`;
+  const r=a.tfResults[tf];
   const tbody=$('indTableBody');
   if(!r){ tbody.innerHTML='<tr><td colspan="4">1時間足のデータが不足しています</td></tr>'; return; }
   let html='', lastGroup='';
@@ -1819,7 +1911,7 @@ function renderChartTabs(){
   $('chartTabs').innerHTML=TF_KEYS.map(k=>
     `<button class="${k===chartTf?'active':''}" data-tf="${k}">${TF_DEFS[k].label}</button>`).join('');
   $('chartTabs').querySelectorAll('button').forEach(b=>
-    b.addEventListener('click',()=>{ chartTf=b.dataset.tf; renderChartTabs(); renderChart(); }));
+    b.addEventListener('click',()=>{ chartTf=b.dataset.tf; renderChartTabs(); renderChart(); if(lastAnalysis) renderIndTable(lastAnalysis); }));
 }
 async function renderChart(){
   const a=lastAnalysis;
@@ -1996,6 +2088,7 @@ function init(){
   loadSettings();
   $('pairSelect').innerHTML=PAIRS.map(p=>`<option>${p.label}</option>`).join('');
   $('analyzeBtn').addEventListener('click', analyze);
+  $('scanBtn').addEventListener('click', scanAll);
   document.querySelectorAll('#overlayToggles input').forEach(cb=>cb.addEventListener('change', renderChart));
   initModals();
   renderSession();
