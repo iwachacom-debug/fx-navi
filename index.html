@@ -12,8 +12,19 @@
   --accent:#4f8cff; --warn:#ffb020; --err:#ff5c5c; --ok:#3ecf8e;
   --up:#ff4d5e; --down:#3d8bff; /* 日本式: 上昇=赤 / 下落=青 */
   --radius:12px;
+  --header-bg:rgba(15,20,32,.92); --meter-mid:#3a4258;
+  --chart-bg:#161d2e; --chart-grid:#1e2740; --chart-text:#9aa7c0; --chart-border:#2a3550; --plan-line:#ffffff;
+}
+body.theme-light{
+  --bg:#f2f4f9; --bg2:#ffffff; --bg3:#e9edf5; --line:#d5dce8;
+  --fg:#1b2436; --fg2:#4e5a72; --fg3:#7c8699;
+  --accent:#2f6fe0; --warn:#a86a00; --err:#cf3838; --ok:#177a52;
+  --header-bg:rgba(255,255,255,.92); --meter-mid:#c8d0de;
+  --chart-bg:#ffffff; --chart-grid:#e7ebf3; --chart-text:#5a6478; --chart-border:#d5dce8; --plan-line:#1b2436;
 }
 body.color-intl{ --up:#22c55e; --down:#ef4444; }
+body.theme-light.color-intl{ --up:#16a34a; --down:#dc2626; }
+body.theme-light{ --up:#e0293c; --down:#2563eb; }
 *{box-sizing:border-box; margin:0; padding:0;}
 html{-webkit-text-size-adjust:100%;}
 body{
@@ -32,7 +43,7 @@ button{font-family:inherit;}
 
 /* ヘッダー */
 header{
-  position:sticky; top:0; z-index:20; background:rgba(15,20,32,.92); backdrop-filter:blur(6px);
+  position:sticky; top:0; z-index:20; background:var(--header-bg); backdrop-filter:blur(6px);
   border-bottom:1px solid var(--line);
 }
 .header-in{max-width:920px; margin:0 auto; padding:10px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
@@ -82,7 +93,7 @@ header{
 .v-sell #verdictLabel{color:var(--down); opacity:.85;}
 .v-strongsell #verdictLabel{color:var(--down);}
 .v-strongbuy{border-color:var(--up);} .v-strongsell{border-color:var(--down);}
-.meter{position:relative; height:14px; background:linear-gradient(90deg,var(--down),#3a4258 48%,#3a4258 52%,var(--up)); border-radius:7px; margin:12px 0 4px; opacity:.9;}
+.meter{position:relative; height:14px; background:linear-gradient(90deg,var(--down),var(--meter-mid) 48%,var(--meter-mid) 52%,var(--up)); border-radius:7px; margin:12px 0 4px; opacity:.9;}
 .meter-needle{position:absolute; top:-4px; width:4px; height:22px; background:#fff; border-radius:2px; box-shadow:0 0 6px rgba(0,0,0,.6); transform:translateX(-50%);}
 .meter-scale{display:flex; justify-content:space-between; font-size:11px; color:var(--fg3); margin-bottom:10px;}
 #verdictReason{font-size:14px;}
@@ -197,6 +208,7 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
     <h1>📈 FXナビ</h1>
     <span id="sessionBadge">—</span>
     <div class="header-btns">
+      <button class="icon-btn" id="themeBtn" title="ダーク/ライト切替">🌙</button>
       <button class="icon-btn" id="glossBtn">📖 用語集</button>
       <button class="icon-btn" id="settingsBtn">⚙ 設定</button>
     </div>
@@ -291,6 +303,11 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
     <h3>⚙ 設定</h3>
     <label>Twelve Data APIキー(任意・GMOコインAPIが使えないときの予備)</label>
     <input type="password" id="setTdKey" placeholder="無料キーを twelvedata.com で取得できます">
+    <label>画面テーマ</label>
+    <select id="setTheme">
+      <option value="dark">ダークモード</option>
+      <option value="light">ライトモード</option>
+    </select>
     <label>上昇の表示色</label>
     <select id="setColorMode">
       <option value="jp">赤=上昇 / 青=下落(日本式)</option>
@@ -1164,10 +1181,16 @@ const TF_DEFS={
 const TF_KEYS=Object.keys(TF_DEFS);
 const MIN_BARS=60; // これ未満の時間足は「データ不足」
 
-const settings={ tdKey:'', colorMode:'jp' };
+const settings={ tdKey:'', colorMode:'jp', theme:'dark' };
+function applyTheme(){
+  document.body.classList.toggle('color-intl', settings.colorMode==='intl');
+  document.body.classList.toggle('theme-light', settings.theme==='light');
+  const tb=document.getElementById('themeBtn');
+  if(tb) tb.textContent = settings.theme==='light' ? '☀️' : '🌙';
+}
 function loadSettings(){
   try{ Object.assign(settings, JSON.parse(localStorage.getItem('fxnavi.settings')||'{}')); }catch(e){}
-  document.body.classList.toggle('color-intl', settings.colorMode==='intl');
+  applyTheme();
 }
 function saveSettings(){ localStorage.setItem('fxnavi.settings', JSON.stringify(settings)); }
 
@@ -1761,6 +1784,7 @@ function loadLwc(){
   });
 }
 function overlayOn(id){ const cb=document.querySelector(`#overlayToggles input[data-ov="${id}"]`); return cb&&cb.checked; }
+function cssVar(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
 function chartColors(){
   const jp=settings.colorMode!=='intl';
   return {up: jp?'#ff4d5e':'#22c55e', down: jp?'#3d8bff':'#ef4444'};
@@ -1787,10 +1811,10 @@ function renderLwc(a,bars){
   if(lwcChart){ try{lwcChart.remove();}catch(e){} lwcChart=null; }
   const col=chartColors();
   lwcChart=lwcLib.createChart(box,{
-    layout:{background:{color:'#161d2e'}, textColor:'#9aa7c0'},
-    grid:{vertLines:{color:'#1e2740'}, horzLines:{color:'#1e2740'}},
-    timeScale:{timeVisible:true, secondsVisible:false, borderColor:'#2a3550'},
-    rightPriceScale:{borderColor:'#2a3550'},
+    layout:{background:{color:cssVar('--chart-bg')}, textColor:cssVar('--chart-text')},
+    grid:{vertLines:{color:cssVar('--chart-grid')}, horzLines:{color:cssVar('--chart-grid')}},
+    timeScale:{timeVisible:true, secondsVisible:false, borderColor:cssVar('--chart-border')},
+    rightPriceScale:{borderColor:cssVar('--chart-border')},
     autoSize:true,
   });
   const t=(b)=>Math.floor(b.t/1000)+9*3600; // JST表示
@@ -1825,7 +1849,7 @@ function renderLwc(a,bars){
   }
   if(overlayOn('plan') && a.plan.entry!=null){
     const ref=a.plan.status!=='entry'? '(参考)':'';
-    cs.createPriceLine({price:a.plan.entry, color:'#ffffff', lineWidth:1, lineStyle:0, title:'エントリー'+ref});
+    cs.createPriceLine({price:a.plan.entry, color:cssVar('--plan-line'), lineWidth:1, lineStyle:0, title:'エントリー'+ref});
     cs.createPriceLine({price:a.plan.sl, color:col.down, lineWidth:2, lineStyle:2, title:'逆指値(損切り)'+ref});
     cs.createPriceLine({price:a.plan.tp, color:col.up, lineWidth:2, lineStyle:2, title:'指値(利確)'+ref});
   }
@@ -1849,7 +1873,7 @@ function renderCanvasChart(a,bars){
   const col=chartColors();
   const bw=Math.max(2,(W-padL-padR)/view.length*0.6);
   // 目盛り
-  g.fillStyle='#6a7690'; g.strokeStyle='#1e2740'; g.font=`${11*devicePixelRatio}px sans-serif`;
+  g.fillStyle=cssVar('--chart-text'); g.strokeStyle=cssVar('--chart-grid'); g.font=`${11*devicePixelRatio}px sans-serif`;
   for(let i=0;i<=4;i++){
     const p=lo+(hi-lo)*i/4, y=Y(p);
     g.beginPath(); g.moveTo(padL,y); g.lineTo(W-padR,y); g.stroke();
@@ -1885,7 +1909,7 @@ function renderCanvasChart(a,bars){
       g.beginPath(); g.moveTo(padL,Y(p)); g.lineTo(W-padR,Y(p)); g.stroke(); g.setLineDash([]);
       g.fillStyle=color; g.fillText(label, padL+4*devicePixelRatio, Y(p)-4*devicePixelRatio);
     };
-    line(a.plan.entry,'#ffffff','エントリー'+ref);
+    line(a.plan.entry,cssVar('--plan-line'),'エントリー'+ref);
     line(a.plan.sl,col.down,'逆指値(損切り)'+ref);
     line(a.plan.tp,col.up,'指値(利確)'+ref);
   }
@@ -1913,15 +1937,23 @@ function initModals(){
   $('settingsBtn').addEventListener('click',()=>{
     $('setTdKey').value=settings.tdKey;
     $('setColorMode').value=settings.colorMode;
+    $('setTheme').value=settings.theme;
     $('settingsModal').classList.add('show');
   });
   $('settingsSave').addEventListener('click',()=>{
     settings.tdKey=$('setTdKey').value.trim();
     settings.colorMode=$('setColorMode').value;
+    settings.theme=$('setTheme').value;
     saveSettings();
-    document.body.classList.toggle('color-intl', settings.colorMode==='intl');
+    applyTheme();
     $('settingsModal').classList.remove('show');
     if(lastAnalysis) renderAll();
+  });
+  $('themeBtn').addEventListener('click',()=>{
+    settings.theme = settings.theme==='light' ? 'dark' : 'light';
+    saveSettings();
+    applyTheme();
+    if(lastAnalysis) renderChart(); // チャートの配色をテーマに合わせて描き直す
   });
   $('glossBtn').addEventListener('click',()=>{
     $('glossList').innerHTML=GLOSSARY.map(([t,d])=>
