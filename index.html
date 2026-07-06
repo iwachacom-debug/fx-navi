@@ -1351,14 +1351,24 @@ async function fetchAllGmo(pair, onStatus){
   return {source: viaProxy(GMO_HOST)? 'GMOコイン 外国為替API(CORS中継経由)' : 'GMOコイン 外国為替API', candles:out, price};
 }
 
-async function tdSeries(pair, interval, size, key){
+async function tdSeries(pair, interval, size, key, onStatus){
   const url=`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair.td)}&interval=${interval}&outputsize=${size}&timezone=UTC&apikey=${encodeURIComponent(key)}`;
-  const r=await cachedJson(url, 60e3, true);
-  if(r.status==='error' || !Array.isArray(r.values)) throw new Error(r.message||'td error');
-  return r.values.map(v=>({
-    t:Date.parse(v.datetime.replace(' ','T')+'Z'),
-    o:+v.open, h:+v.high, l:+v.low, c:+v.close
-  })).sort((a,b)=>a.t-b.t);
+  // 無料枠は1分あたり8リクエストまで。上限に当たったら次の1分枠まで待って自動リトライする
+  for(let attempt=0; attempt<6; attempt++){
+    const r=await cachedJson(url, 60e3, true);
+    const limited = r.code===429 || /api credits|run out|limit/i.test(r.message||'');
+    if(!limited && r.status!=='error' && Array.isArray(r.values)){
+      return r.values.map(v=>({
+        t:Date.parse(v.datetime.replace(' ','T')+'Z'),
+        o:+v.open, h:+v.high, l:+v.low, c:+v.close
+      })).sort((a,b)=>a.t-b.t);
+    }
+    if(!limited) throw new Error(r.message||'td error');
+    fetchCache.delete(url); // エラー応答をキャッシュから消してからリトライ
+    if(onStatus) onStatus(`Twelve Data無料枠の分速制限に到達。次の枠を待っています…(${attempt+1}/6)`);
+    await sleep(12000);
+  }
+  throw new Error('Twelve Dataの分速制限が解除されませんでした');
 }
 function merge4hTo8h(bars4h){
   const out=[];
@@ -1377,7 +1387,7 @@ async function fetchAllTd(pair, onStatus){
   for(const k of TF_KEYS){
     const def=TF_DEFS[k];
     if(k==='8hour') continue;
-    out[k]=await tdSeries(pair, def.td, k==='4hour'?410:def.need+2, key);
+    out[k]=await tdSeries(pair, def.td, k==='4hour'?410:def.need+2, key, onStatus);
   }
   out['8hour']=merge4hTo8h(out['4hour']);
   out['4hour']=out['4hour'].slice(-(TF_DEFS['4hour'].need+2));
