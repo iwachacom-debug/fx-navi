@@ -96,6 +96,9 @@ header{
 .meter{position:relative; height:14px; background:linear-gradient(90deg,var(--down),var(--meter-mid) 48%,var(--meter-mid) 52%,var(--up)); border-radius:7px; margin:12px 0 4px; opacity:.9;}
 .meter-needle{position:absolute; top:-4px; width:4px; height:22px; background:#fff; border-radius:2px; box-shadow:0 0 6px rgba(0,0,0,.6); transform:translateX(-50%);}
 .meter-scale{display:flex; justify-content:space-between; font-size:11px; color:var(--fg3); margin-bottom:10px;}
+.top-plan{display:flex; gap:6px 16px; flex-wrap:wrap; align-items:baseline; margin:2px 0 12px; padding:9px 13px; background:var(--bg3); border-radius:9px; font-size:14px;}
+.top-plan b{font-variant-numeric:tabular-nums; font-size:16px;}
+.top-plan.ref{border:1px dashed var(--line); background:transparent;}
 #verdictReason{font-size:14px;}
 #verdictWarns{margin-top:10px; display:flex; flex-direction:column; gap:6px;}
 .warn-item{font-size:13px; color:var(--warn); background:rgba(255,176,32,.08); border-left:3px solid var(--warn); padding:6px 10px; border-radius:0 8px 8px 0;}
@@ -240,6 +243,7 @@ footer{border-top:1px solid var(--line); margin-top:40px;}
       </div>
       <div class="meter"><div class="meter-needle" id="meterNeedle" style="left:50%"></div></div>
       <div class="meter-scale"><span>-100 強い売り</span><span>0 中立</span><span>+100 強い買い</span></div>
+      <div id="topPlan" class="top-plan hidden"></div>
       <div id="verdictReason"></div>
       <div id="verdictWarns"></div>
     </section>
@@ -1213,14 +1217,19 @@ function fmtPriceFactory(pair){ const dec=pair.jpy?3:5; return v=> v==null?'—'
 
 /* ---------------- データ取得層(§3) ---------------- */
 const fetchCache=new Map(); // key → {bars, at, ttl}
-async function cachedJson(url, ttlMs){
+async function cachedJson(url, ttlMs, isCurrent=false){
   const hit=fetchCache.get(url);
   if(hit && (hit.ttl===0 || Date.now()-hit.at<hit.ttl)) return hit.data;
   const res=await fetch(url, {cache:'no-store'});
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   const data=await res.json();
-  fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs});
+  fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs, current:isCurrent});
   return data;
+}
+// 分析ボタンを押した瞬間の値を使うため、変動しうる期間(当日・当年・現在値)のキャッシュを破棄する。
+// 確定済みの過去データ(current=false)は変わらないのでキャッシュを維持して高速化する。
+function clearCurrentCache(){
+  for(const [k,v] of fetchCache){ if(v.current) fetchCache.delete(k); }
 }
 /* CORS対策: 直接アクセスがブラウザに拒否されるAPI(GMOコイン等)は
    CORS中継サービス経由で再試行する。ホストごとに成功した経路を記憶する */
@@ -1231,7 +1240,7 @@ const TRANSPORTS=[
 ];
 const hostTransport={}; // host → 成功したTRANSPORTSの添字
 function viaProxy(host){ return (hostTransport[host]||0)>0; }
-async function corsJson(url, ttlMs){
+async function corsJson(url, ttlMs, isCurrent=false){
   const hit=fetchCache.get(url);
   if(hit && (hit.ttl===0 || Date.now()-hit.at<hit.ttl)) return hit.data;
   const host=new URL(url).host;
@@ -1243,7 +1252,7 @@ async function corsJson(url, ttlMs){
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       const data=await res.json();
       hostTransport[host]=i;
-      fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs});
+      fetchCache.set(url, {data, at:Date.now(), ttl:ttlMs, current:isCurrent});
       return data;
     }catch(e){ lastErr=e; }
   }
@@ -1254,7 +1263,7 @@ const GMO_HOST='forex-api.coin.z.com';
 
 async function gmoKlines(sym, interval, dateStr, isCurrent){
   const url=`${GMO}/klines?symbol=${sym}&priceType=BID&interval=${interval}&date=${dateStr}`;
-  const r=await corsJson(url, isCurrent?60e3:0);
+  const r=await corsJson(url, isCurrent?60e3:0, isCurrent);
   if(r.status!==0 || !Array.isArray(r.data)) return [];
   return r.data.map(k=>({t:+k.openTime, o:+k.open, h:+k.high, l:+k.low, c:+k.close}));
 }
@@ -1288,7 +1297,7 @@ async function fetchGmoTf(pair, tfKey){
 }
 async function fetchAllGmo(pair, onStatus){
   onStatus('GMOコインAPIに接続中…');
-  const tick=await corsJson(`${GMO}/ticker`, 30e3); // 疎通確認 + 現在値
+  const tick=await corsJson(`${GMO}/ticker`, 30e3, true); // 疎通確認 + 現在値
   if(tick.status!==0) throw new Error('gmo status');
   const tk=(tick.data||[]).find(x=>x.symbol===pair.gmo);
   onStatus(viaProxy(GMO_HOST)? 'ローソク足を取得中(GMOコイン・CORS中継経由)…' : 'ローソク足を取得中(GMOコイン)…');
@@ -1301,7 +1310,7 @@ async function fetchAllGmo(pair, onStatus){
 
 async function tdSeries(pair, interval, size, key){
   const url=`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair.td)}&interval=${interval}&outputsize=${size}&timezone=UTC&apikey=${encodeURIComponent(key)}`;
-  const r=await cachedJson(url, 60e3);
+  const r=await cachedJson(url, 60e3, true);
   if(r.status==='error' || !Array.isArray(r.values)) throw new Error(r.message||'td error');
   return r.values.map(v=>({
     t:Date.parse(v.datetime.replace(' ','T')+'Z'),
@@ -1521,6 +1530,7 @@ async function analyze(){
   try{
     const pair=currentPair();
     const fmtP=fmtPriceFactory(pair);
+    clearCurrentCache(); // 押した瞬間の最新値を取り直す
     const calP=fetchCalendar();
     const data=await fetchAll(pair, m=>setStatus(m));
     await calP;
@@ -1626,6 +1636,7 @@ function renderAll(){
   $('meterNeedle').style.left=`${((a.comp??0)+100)/2}%`;
   $('verdictReason').innerHTML=buildReasonText(a);
   $('verdictWarns').innerHTML=buildWarnings(a).map(t=>`<div class="warn-item">⚠️ ${t}</div>`).join('');
+  renderTopPlan(a);
   renderPlan(a);
   renderCalendar(a);
   renderTfSummary(a);
@@ -1633,6 +1644,21 @@ function renderAll(){
   renderChartTabs();
   renderChart();
   renderSession();
+}
+// 判定カード内の最適指値・逆指値サマリー(常に一番上に見える位置)
+function renderTopPlan(a){
+  const el=$('topPlan'), p=a.plan, f=a.fmtP;
+  if(!p || p.entry==null){ el.classList.add('hidden'); return; }
+  const ref = p.status!=='entry';
+  el.className = 'top-plan'+(ref?' ref':'');
+  const dirTxt = p.dir==='buy'? '<span class="dir-buy">買い</span>' : '<span class="dir-sell">売り</span>';
+  el.innerHTML =
+    (ref? '<span class="muted small">見送り中の参考値:</span> ':'')+
+    dirTxt+
+    `<span>エントリー <b>${f(p.entry)}</b></span>`+
+    `<span>逆指値(損切り) <b>${f(p.sl)}</b></span>`+
+    `<span>指値(利確) <b>${f(p.tp)}</b></span>`+
+    `<span class="muted small">RR ${p.rr!=null? p.rr.toFixed(2):'—'}</span>`;
 }
 const PLAN_HELP={
   entry:'エントリー価格: 新しくポジションを持つ価格です。「成行」はいますぐの価格で注文することです。',
